@@ -1,3 +1,4 @@
+import re
 from abc import ABC, abstractmethod
 
 import torch
@@ -78,6 +79,121 @@ class NextTokenGenerator(MidiGenerator):
         generated_notes = self.tokenizer.untokenize(out_tokens)
 
         return prompt_notes, generated_notes
+
+
+class SeqToSeqTokenwiseGenerator(MidiGenerator):
+    """
+    This generation method performs calculations directly on tokens to keep the timing the same at all times.
+    """
+
+    def __init__(
+        self,
+        task: str,
+        model: nn.Module,
+        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        device: torch.device,
+        prompt_context_duration: float,
+        time_step: float,
+        temperature: float = 1.0,
+        max_new_tokens: int = 512,
+    ):
+        super().__init__(
+            model=model,
+            tokenizer=tokenizer,
+            device=device,
+        )
+        self.prompt_context_duration = prompt_context_duration
+        self.time_step = time_step
+        self.temperature = temperature
+        self.max_new_tokens = max_new_tokens
+        self.task_generator = Task.get_task(task_name=task)
+
+    @staticmethod
+    def calculate_token_duration(
+        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        tokens: list[str],
+    ):
+        t = 0
+        for token in tokens:
+            if re.search(".T$", token) is not None:
+                dt: float = tokenizer.token_to_dt[token]
+                t += dt
+        return t
+
+    def trim_tokens_front(
+        time_step: float,
+        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        tokens: list[str],
+    ):
+        t = 0
+        tokens = tokens.copy()
+        for token in tokens:
+            if re.search(".T$", token) is not None:
+                dt: float = tokenizer.token_to_dt[token]
+                t += dt
+            if t >= time_step or len(tokens) == 0:
+                break
+            tokens.pop(0)
+        return tokens
+
+    def trim_tokens_back(
+        duration: float,
+        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        tokens: list[str],
+    ):
+        t = 0
+        result = []
+        for token in tokens:
+            if re.search(".T$", token) is not None:
+                dt: float = tokenizer.token_to_dt[token]
+                t += dt
+            result.append(token)
+            if t >= duration:
+                return result
+
+    def generate(self, prompt_notes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+        input_tokens = self.tokenizer.tokenize(prompt_notes)
+        output_tokens = []
+        source_token = self.task_generator.source_token
+        target_token = self.task_generator.target_token
+
+        for _ in self.max_new_tokens:
+            step_input_tokens = SeqToSeqTokenwiseGenerator.trim_tokens_back(
+                duration=self.prompt_context_duration,
+                tokenizer=self.tokenizer,
+                tokens=input_tokens,
+            )
+            input_duration = SeqToSeqTokenwiseGenerator.calculate_token_duration(
+                tokenizer=self.tokenizer,
+                tokens=step_input_tokens,
+            )
+            source_token = self.task_generator.source_token
+            target_token = self.task_generator.target_token
+            step_input_tokens = [source_token] + step_input_tokens + [target_token]
+            step_token_ids = [self.tokenizer.token_to_id[token] for token in step_input_tokens]
+
+            next_token = self.model.generate_new_tokens(
+                idx=step_token_ids,
+                temperature=self.temperature,
+                max_new_tokens=1,
+            )
+
+            next_token_id = next_token[0].cpu().numpy()[0]
+            next_token = self.tokenizer.vocab[next_token_id]
+
+            output_tokens.append(next_token)
+
+            if self.calculate_token_duration(output_tokens) > input_duration:
+                input_tokens = SeqToSeqTokenwiseGenerator.trim_tokens_front(
+                    time_step=self.time_step,
+                    tokenizer=self.tokenizer,
+                    tokens=input_tokens,
+                )
+            if len(input_tokens) == 0:
+                break
+
+        target_notes = self.tokenizer.untokenize(tokens=output_tokens)
+        return prompt_notes, target_notes
 
 
 class SeqToSeqIterativeGenerator(MidiGenerator):
