@@ -70,6 +70,7 @@ def main():
                 tokenizer=tokenizer,
                 device=device,
                 prompt_context_duration=prompt_context_duration,
+                target_context_duration=target_context_duration,
                 time_step=time_step,
                 temperature=temperature,
                 max_new_tokens=max_new_tokens,
