@@ -183,7 +183,7 @@ class VelocityDenoising(Task):
 
     def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         noisy_notes = self._add_noise_to_notes(notes, "velocity", 0.3)
-        return notes, noisy_notes
+        return noisy_notes, notes
 
     @staticmethod
     def _add_noise_to_notes(notes: pd.DataFrame, attribute: str, noise_level: float) -> pd.DataFrame:
@@ -201,7 +201,7 @@ class PitchDenoising(Task):
 
     def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         noisy_notes = self._add_noise_to_notes(notes, "pitch", 0.05)
-        return notes, noisy_notes
+        return noisy_notes, notes
 
     @staticmethod
     def _add_noise_to_notes(notes: pd.DataFrame, attribute: str, noise_level: float) -> pd.DataFrame:
@@ -219,7 +219,7 @@ class StartTimeDenoising(Task):
 
     def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         noisy_notes = self._add_noise_to_notes(notes, "start", 0.05)
-        return notes, noisy_notes
+        return noisy_notes, notes
 
     @staticmethod
     def _add_noise_to_notes(notes: pd.DataFrame, attribute: str, noise_level: float) -> pd.DataFrame:
@@ -238,7 +238,7 @@ class TimeDenoising(Task):
 
     def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         noisy_notes = self._add_noise_to_notes(notes, "time", 0.05)
-        return notes, noisy_notes
+        return noisy_notes, notes
 
     @staticmethod
     def _add_noise_to_notes(notes: pd.DataFrame, attribute: str, noise_level: float) -> pd.DataFrame:
@@ -263,7 +263,7 @@ class ComprehensiveDenoising(Task):
 
     def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         noisy_notes = self._add_comprehensive_noise(notes, 0.1)
-        return notes, noisy_notes
+        return noisy_notes, notes
 
     @staticmethod
     def _add_comprehensive_noise(notes: pd.DataFrame, noise_level: float) -> pd.DataFrame:

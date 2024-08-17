@@ -1,75 +1,27 @@
 import os
 import re
 import json
-from glob import glob
+import tempfile
 from contextlib import nullcontext
 
-import yaml
 import torch
 import pandas as pd
 import fortepyan as ff
 import streamlit as st
 import streamlit_pianoroll
-from datasets import Dataset, load_dataset
 from omegaconf import OmegaConf, DictConfig
 
 from model.gpt2 import GPT, GPTConfig
 import generation.generators as generators
 from generation.tasks import Task, task_map
 from dashboards.components import download_button
+from dashboards.utils import dataset_configuration, select_model_and_device
 from model.tokenizers import AwesomeTokenizer, ExponentialTokenizer, special_tokens
 
 
 def load_cfg(checkpoint: dict) -> DictConfig:
     train_config = checkpoint["config"]
     return OmegaConf.create(train_config)
-
-
-def select_model_and_device():
-    with st.sidebar:
-        st.header("Model Configuration")
-        devices = [f"cuda:{it}" for it in range(torch.cuda.device_count())] + ["cpu"]
-        device = st.selectbox("Select Device", options=devices, help="Choose the device to run the model on")
-        checkpoint_path = st.selectbox(
-            "Select Checkpoint",
-            options=glob("checkpoints/*.pt"),
-            help="Choose the model checkpoint to use",
-        )
-
-    return device, checkpoint_path
-
-
-def select_part_dataset(midi_dataset: Dataset) -> Dataset:
-    """
-    Allows the user to select a part of the dataset based on composer and title.
-
-    Parameters:
-        midi_dataset (Dataset): The MIDI dataset to select from.
-
-    Returns:
-        Dataset: The selected part of the dataset.
-    """
-    source_df = midi_dataset.to_pandas()
-    source_df["source"] = source_df["source"].map(lambda source: yaml.safe_load(source))
-    source_df["composer"] = [source["composer"] for source in source_df.source]
-    source_df["title"] = [source["title"] for source in source_df.source]
-
-    composers = source_df.composer.unique()
-    selected_composer = st.selectbox(
-        "Select composer",
-        options=composers,
-        index=3,
-    )
-
-    ids = source_df.composer == selected_composer
-    piece_titles = source_df[ids].title.unique()
-    selected_title = st.selectbox("Select title", options=piece_titles)
-
-    ids = (source_df.composer == selected_composer) & (source_df.title == selected_title)
-    part_df = source_df[ids]
-    part_dataset = midi_dataset.select(part_df.index.values)
-
-    return part_dataset
 
 
 def load_checkpoint(checkpoint_path: str, device: str):
@@ -150,41 +102,6 @@ def initialize_gpt_model(
     return model
 
 
-def dataset_configuration():
-    st.header("Dataset Configuration")
-    col1, col2 = st.columns(2)
-    with col1:
-        dataset_path = st.text_input(
-            "Dataset Path",
-            value="roszcz/maestro-sustain-v2",
-            help="Enter the path to the dataset",
-        )
-    with col2:
-        dataset_split = st.selectbox(
-            "Dataset Split",
-            options=["validation", "train", "test"],
-            help="Choose the dataset split to use",
-        )
-
-    with st.spinner("Loading dataset..."):
-        dataset = load_hf_dataset(dataset_path=dataset_path, dataset_split=dataset_split)
-        dataset = select_part_dataset(midi_dataset=dataset)
-
-    st.success(f"Dataset loaded! Total records: {len(dataset)}")
-    return dataset
-
-
-@st.cache_data
-def load_hf_dataset(dataset_path: str, dataset_split: str):
-    dataset = load_dataset(
-        dataset_path,
-        split=dataset_split,
-        trust_remote_code=True,
-        num_proc=8,
-    )
-    return dataset
-
-
 def select_generator():
     st.header("Generation Configuration")
     generator_type = st.selectbox(label="Generator", options=generators.generator_types.keys())
@@ -224,9 +141,41 @@ def prepare_prompt(
     task: str,
     notes: pd.DataFrame,
 ):
+    if task == "next_token_prediction":
+        return notes, pd.DataFrame(columns=notes.columns)
     task_generator = Task.get_task(task_name=task)
     prompt_notes, target_notes = task_generator.generate(notes=notes)
     return prompt_notes, target_notes
+
+
+def upload_midi_file(task: str):
+    st.header("Upload Custom MIDI")
+    uploaded_file = st.file_uploader("Choose a MIDI file", type="mid")
+    use_whole_file = st.checkbox("Use whole file as prompt (skip preprocessing)", value=False)
+
+    if uploaded_file is not None:
+        # Create a temporary file to save the uploaded MIDI data - fortepyan does not support files :(
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mid") as temp_midi_file:
+            temp_midi_file.write(uploaded_file.getvalue())
+            temp_midi_path = temp_midi_file.name
+
+        try:
+            # Load the MIDI file using fortepyan
+            midi_file = ff.MidiFile(temp_midi_path)
+            notes = midi_file.piece.df
+
+            if not use_whole_file:
+                notes, _ = prepare_prompt(task=task, notes=notes)
+
+            st.success("MIDI file uploaded successfully!")
+            streamlit_pianoroll.from_fortepyan(piece=ff.MidiPiece(notes))
+
+            return notes
+        finally:
+            # Clean up the temporary file
+            os.unlink(temp_midi_path)
+
+    return None
 
 
 def main():
@@ -234,28 +183,37 @@ def main():
 
     # Load model and dataset
     device, checkpoint_path = select_model_and_device()
-    dataset = dataset_configuration()
 
     # Generation configuration
     generator = select_generator()
 
-    # Select a prompt from the dataset
-    prompt_index = st.number_input("Select prompt index", min_value=0, max_value=len(dataset) - 1, value=0)
-    record = dataset[prompt_index]
-    prompt_notes = record["notes"]
-    source = json.loads(record["source"])
-    st.json(source)
+    # Option to use dataset or upload custom MIDI
+    use_custom_midi = st.checkbox("Use custom MIDI file", value=False)
 
-    composer = source["composer"]
-    title = source["title"]
+    if use_custom_midi:
+        prompt_notes = upload_midi_file(task=generator.task)
+        if prompt_notes is None:
+            st.warning("Please upload a MIDI file to continue.")
+            return
+    else:
+        dataset = dataset_configuration()
+        # Select a prompt from the dataset
+        prompt_index = st.number_input("Select prompt index", min_value=0, max_value=len(dataset) - 1, value=0)
+        record = dataset[prompt_index]
+        prompt_notes = record["notes"]
+        source = json.loads(record["source"])
+        st.json(source)
 
-    prompt_notes = pd.DataFrame(prompt_notes)
-    prompt_notes, _ = prepare_prompt(
-        task=generator.task,
-        notes=prompt_notes,
-    )
-    prompt_piece = ff.MidiPiece(prompt_notes)
-    streamlit_pianoroll.from_fortepyan(piece=prompt_piece)
+        composer = source["composer"]
+        title = source["title"]
+
+        prompt_notes = pd.DataFrame(prompt_notes)
+        prompt_notes, _ = prepare_prompt(
+            task=generator.task,
+            notes=prompt_notes,
+        )
+        prompt_piece = ff.MidiPiece(prompt_notes)
+        streamlit_pianoroll.from_fortepyan(piece=prompt_piece)
 
     if st.button("Generate"):
         with st.spinner("Loading checkpoint..."):
@@ -290,14 +248,18 @@ def main():
 
         prompt_piece = ff.MidiPiece(df=prompt_notes)
         generated_piece = ff.MidiPiece(df=generated_notes)
-        if generated_notes:
+        if generated_notes is not None and not generated_notes.empty:
             st.success("Generation complete!")
             streamlit_pianoroll.from_fortepyan(piece=generated_piece)
             streamlit_pianoroll.from_fortepyan(piece=prompt_piece, secondary_piece=generated_piece)
 
             out_piece = ff.MidiPiece(pd.concat([prompt_notes, generated_notes]))
-            # Allow download of the full MIDI with context\
-            midi_name = f"{model_name}_variations_on_{title}_{composer}".lower()
+            # Allow download of the full MIDI with context
+            if use_custom_midi:
+                midi_name = f"{model_name}_custom_midi_variation"
+            else:
+                midi_name = f"{model_name}_variations_on_{title}_{composer}".lower()
+            # Remove punctuation other than whitespace
             midi_name = re.sub(r"[^\w\s]", "", midi_name)
             full_midi_path = f"tmp/{midi_name}.mid"
             out_piece.to_midi().write(full_midi_path)
@@ -313,3 +275,7 @@ def main():
             os.unlink(full_midi_path)
         else:
             st.error("Generation failed or not implemented.")
+
+
+if __name__ == "__main__":
+    main()
