@@ -48,9 +48,6 @@ def main():
         temperature = st.sidebar.number_input("Temperature", value=1.0)
 
         generator = NextTokenGenerator(
-            model=model,
-            tokenizer=tokenizer,
-            device=device,
             prompt_context_duration=prompt_context_duration,
             max_new_tokens=max_new_tokens,
             temperature=temperature,
@@ -66,9 +63,6 @@ def main():
         if generator_type == "SeqToSeqTokenwiseGenerator":
             generator = SeqToSeqTokenwiseGenerator(
                 task=task,
-                model=model,
-                tokenizer=tokenizer,
-                device=device,
                 prompt_context_duration=prompt_context_duration,
                 target_context_duration=target_context_duration,
                 time_step=time_step,
@@ -78,9 +72,6 @@ def main():
         else:
             generator = SeqToSeqIterativeGenerator(
                 task=task,
-                model=model,
-                tokenizer=tokenizer,
-                device=device,
                 prompt_context_duration=prompt_context_duration,
                 target_context_duration=target_context_duration,
                 time_step=time_step,
@@ -105,7 +96,12 @@ def main():
     # Generate output
     if st.button("Generate"):
         with st.spinner("Generating..."):
-            prompt_notes, generated_notes = generator.generate(input_notes)
+            prompt_notes, generated_notes = generator.generate(
+                prompt_notes=input_notes,
+                model=model,
+                tokenizer=tokenizer,
+                device=device,
+            )
 
         st.header("Generated Output")
         st.write(generated_notes)

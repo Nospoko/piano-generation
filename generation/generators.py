@@ -10,20 +10,16 @@ from model.tokenizers import AwesomeTokenizer, ExponentialTokenizer
 
 
 class MidiGenerator(ABC):
-    def __init__(
-        self,
-        model: nn.Module,
-        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
-        device: torch.device,
-    ):
-        self.model = model
-        self.tokenizer = tokenizer
-        self.device = device
+    def __init__(self, task: str):
+        self.task = task
 
     @abstractmethod
     def generate(
         self,
         prompt_notes: pd.DataFrame,
+        model: nn.Module,
+        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        device: torch.device,
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
         pass
 
@@ -31,18 +27,11 @@ class MidiGenerator(ABC):
 class NextTokenGenerator(MidiGenerator):
     def __init__(
         self,
-        model: nn.Module,
-        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
-        device: torch.device,
         prompt_context_duration: float = 15.0,
         max_new_tokens: int = 1024,
         temperature: float = 1.0,
     ):
-        super().__init__(
-            model=model,
-            tokenizer=tokenizer,
-            device=device,
-        )
+        super().__init__(task="next_token_prediction")
         self.prompt_context_duration = prompt_context_duration
         self.max_new_tokens = max_new_tokens
         self.temperature = temperature
@@ -50,22 +39,25 @@ class NextTokenGenerator(MidiGenerator):
     def generate(
         self,
         prompt_notes: pd.DataFrame,
+        model: nn.Module,
+        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        device: torch.device,
     ):
         prompt_notes = prompt_notes[prompt_notes.end < self.prompt_context_duration]
 
         # Tokenize prompt notes
-        input_sequence = self.tokenizer.tokenize(prompt_notes)
+        input_sequence = tokenizer.tokenize(prompt_notes)
 
         # Convert tokens to ids and prepare input tensor
         input_token_ids = torch.tensor(
-            [[self.tokenizer.token_to_id[token] for token in input_sequence]],
-            device=self.device,
+            [[tokenizer.token_to_id[token] for token in input_sequence]],
+            device=device,
             dtype=torch.int64,
         )
 
         # Generate new tokens using the model
         with torch.no_grad():
-            output = self.model.generate_new_tokens(
+            output = model.generate_new_tokens(
                 input_token_ids,
                 max_new_tokens=self.max_new_tokens,
                 temperature=self.temperature,
@@ -89,20 +81,13 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
     def __init__(
         self,
         task: str,
-        model: nn.Module,
-        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
-        device: torch.device,
         prompt_context_duration: float,
         target_context_duration: float,
         time_step: float,
         temperature: float = 1.0,
         max_new_tokens: int = 512,
     ):
-        super().__init__(
-            model=model,
-            tokenizer=tokenizer,
-            device=device,
-        )
+        super().__init__(task=task)
         self.prompt_context_duration = prompt_context_duration
         self.target_context_duration = target_context_duration
         self.time_step = time_step
@@ -160,7 +145,13 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
                 break
         return result
 
-    def generate(self, prompt_notes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    def generate(
+        self,
+        prompt_notes: pd.DataFrame,
+        model: nn.Module,
+        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        device: torch.device,
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
         input_tokens = self.tokenizer.tokenize(prompt_notes)
         step_target_tokens = []
         output_tokens = []
@@ -170,54 +161,52 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
         for _ in range(self.max_new_tokens):
             step_input_tokens = SeqToSeqTokenwiseGenerator.trim_tokens_back(
                 duration=self.prompt_context_duration,
-                tokenizer=self.tokenizer,
+                tokenizer=tokenizer,
                 tokens=input_tokens,
             )
             source_token = self.task_generator.source_token
             target_token = self.task_generator.target_token
             step_input_tokens = [source_token] + step_input_tokens + [target_token] + step_target_tokens
-            print(step_input_tokens)
 
-            step_token_ids = [self.tokenizer.token_to_id[token] for token in step_input_tokens]
-            next_token = self.model.generate_new_tokens(
+            step_token_ids = [tokenizer.token_to_id[token] for token in step_input_tokens]
+            next_token = model.generate_new_tokens(
                 idx=step_token_ids,
                 temperature=self.temperature,
                 max_new_tokens=1,
             )
 
             next_token_id = next_token[0].cpu().numpy()[0]
-            next_token = self.tokenizer.vocab[next_token_id]
+            next_token = tokenizer.vocab[next_token_id]
 
             output_tokens.append(next_token)
             step_target_tokens.append(next_token)
 
             generated_notes_duration = self.calculate_token_duration(
-                tokenizer=self.tokenizer,
+                tokenizer=tokenizer,
                 tokens=step_target_tokens,
             )
-            print(generated_notes_duration)
             # If the generated notes are longer than context_duration, move the generation window time_step to the right
             if generated_notes_duration > self.target_context_duration:
                 input_tokens = SeqToSeqTokenwiseGenerator.trim_tokens_front(
                     time_step=self.time_step,
-                    tokenizer=self.tokenizer,
+                    tokenizer=tokenizer,
                     tokens=input_tokens,
                 )
                 step_target_tokens = SeqToSeqTokenwiseGenerator.trim_tokens_front(
                     time_step=self.time_step,
-                    tokenizer=self.tokenizer,
+                    tokenizer=tokenizer,
                     tokens=step_target_tokens,
                 )
 
             if (
                 SeqToSeqTokenwiseGenerator.calculate_token_duration(
-                    tokenizer=self.tokenizer,
+                    tokenizer=tokenizer,
                     tokens=input_tokens,
                 )
                 == 0
             ):
                 break
-        target_notes = self.tokenizer.untokenize(tokens=output_tokens)
+        target_notes = tokenizer.untokenize(tokens=output_tokens)
         return prompt_notes, target_notes
 
 
@@ -225,20 +214,13 @@ class SeqToSeqIterativeGenerator(MidiGenerator):
     def __init__(
         self,
         task: str,
-        model: nn.Module,
-        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
-        device: torch.device,
         prompt_context_duration: float,
         target_context_duration: float,
         time_step: float,
         temperature: float = 1.0,
         max_new_tokens: int = 512,
     ):
-        super().__init__(
-            model=model,
-            tokenizer=tokenizer,
-            device=device,
-        )
+        super().__init__(task=task)
         self.prompt_context_duration = prompt_context_duration
         self.target_context_duration = target_context_duration
         self.time_step = time_step
@@ -252,9 +234,12 @@ class SeqToSeqIterativeGenerator(MidiGenerator):
     def generate_subsequence_iteratively(
         self,
         prompt_notes: pd.DataFrame,
+        model: nn.Module,
+        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        device: torch.device,
     ) -> pd.DataFrame:
         # Tokenize prompt at the beginning to standarize tokenization during generation.
-        prompt_notes = self.tokenizer.untokenize(self.tokenizer.tokenize(prompt_notes))
+        prompt_notes = tokenizer.untokenize(tokenizer.tokenize(prompt_notes))
         # Initialize the first step with notes within the prompt and target context durations
         step_prompt_notes = prompt_notes[prompt_notes.end < self.prompt_context_duration].copy()
         step_target_notes = pd.DataFrame(columns=prompt_notes.columns)
@@ -275,8 +260,8 @@ class SeqToSeqIterativeGenerator(MidiGenerator):
             step_target_notes = step_target_notes[(step_target_notes.start > 0) & (step_target_notes.end > 0)]
 
             # Tokenize the current step's prompt and target notes
-            step_sequence = self.tokenizer.tokenize(step_prompt_notes)
-            step_target = self.tokenizer.tokenize(step_target_notes)
+            step_sequence = tokenizer.tokenize(step_prompt_notes)
+            step_target = tokenizer.tokenize(step_target_notes)
 
             # Combine prompt, bass marker, and target into input sequence
             source_task_token = self.task_generator.source_token
@@ -286,12 +271,12 @@ class SeqToSeqIterativeGenerator(MidiGenerator):
             # print(input_sequence)
             # Convert tokens to ids and prepare input tensor
             input_token_ids = torch.tensor(
-                [[self.tokenizer.token_to_id[token] for token in input_sequence]],
-                device=self.device,
+                [[tokenizer.token_to_id[token] for token in input_sequence]],
+                device=device,
                 dtype=torch.int64,
             )
             # Generate new tokens using the model
-            output = self.model.generate_new_tokens(
+            output = model.generate_new_tokens(
                 idx=input_token_ids,
                 temperature=self.temperature,
                 max_new_tokens=self.max_new_tokens,
@@ -300,7 +285,7 @@ class SeqToSeqIterativeGenerator(MidiGenerator):
             output = output[0].cpu().numpy()
 
             # Convert target tokens back to notes
-            output_target_notes = self.tokenizer.decode(output)
+            output_target_notes = tokenizer.decode(output)
 
             # Select only the newly generated notes within the current time step
             notes_within_step = output_target_notes.end < self.target_context_duration + self.time_step
