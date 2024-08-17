@@ -4,8 +4,8 @@ from abc import ABC, abstractmethod
 import torch
 import pandas as pd
 from torch import nn
-from tasks import Task
 
+from generation.tasks import Task
 from model.tokenizers import AwesomeTokenizer, ExponentialTokenizer
 
 
@@ -44,8 +44,8 @@ class NextTokenGenerator(MidiGenerator):
             device=device,
         )
         self.prompt_context_duration = prompt_context_duration
-        max_new_tokens = max_new_tokens
-        temperature = temperature
+        self.max_new_tokens = max_new_tokens
+        self.temperature = temperature
 
     def generate(
         self,
@@ -149,7 +149,8 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
                 t += dt
             result.append(token)
             if t >= duration:
-                return result
+                break
+        return result
 
     def generate(self, prompt_notes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         input_tokens = self.tokenizer.tokenize(prompt_notes)
@@ -157,7 +158,7 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
         source_token = self.task_generator.source_token
         target_token = self.task_generator.target_token
 
-        for _ in self.max_new_tokens:
+        for _ in range(self.max_new_tokens):
             step_input_tokens = SeqToSeqTokenwiseGenerator.trim_tokens_back(
                 duration=self.prompt_context_duration,
                 tokenizer=self.tokenizer,
@@ -183,7 +184,7 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
 
             output_tokens.append(next_token)
 
-            if self.calculate_token_duration(output_tokens) > input_duration:
+            if self.calculate_token_duration(tokenizer=self.tokenizer, tokens=output_tokens) > input_duration:
                 input_tokens = SeqToSeqTokenwiseGenerator.trim_tokens_front(
                     time_step=self.time_step,
                     tokenizer=self.tokenizer,
@@ -191,7 +192,6 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
                 )
             if len(input_tokens) == 0:
                 break
-
         target_notes = self.tokenizer.untokenize(tokens=output_tokens)
         return prompt_notes, target_notes
 
@@ -221,32 +221,23 @@ class SeqToSeqIterativeGenerator(MidiGenerator):
         self.max_new_tokens = max_new_tokens
         self.task_generator = Task.get_task(task_name=task)
 
-    def prepare_prompt(notes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-        # TODO: prompt preparation
-        pass
-
     def generate(self, prompt_notes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-        prompt_notes, target_notes = self.prepare_prompt(notes=prompt_notes)
-        return self.generate_subsequence_iteratively(prompt_notes=prompt_notes, target_notes=target_notes)
+        return self.generate_subsequence_iteratively(prompt_notes=prompt_notes)
 
     def generate_subsequence_iteratively(
         self,
         prompt_notes: pd.DataFrame,
-        target_notes: pd.DataFrame,
     ) -> pd.DataFrame:
         # Tokenize prompt at the beginning to standarize tokenization during generation.
         prompt_notes = self.tokenizer.untokenize(self.tokenizer.tokenize(prompt_notes))
         # Initialize the first step with notes within the prompt and target context durations
         step_prompt_notes = prompt_notes[prompt_notes.end < self.prompt_context_duration].copy()
-        step_target_notes = target_notes[target_notes.end < self.target_context_duration].copy()
+        step_target_notes = pd.DataFrame(columns=prompt_notes.columns)
+
         # Initialize the list of all target notes with the initial target notes
         all_target_notes = [step_target_notes]
         time = 0
         end = prompt_notes.end.max()
-
-        # Handle the case where there's no target context
-        if self.target_context_duration == 0:
-            step_target_notes = pd.DataFrame(columns=prompt_notes.columns)
         it = 0
         # Iterate through the piece, generating bass notes in steps
         while time <= end:
@@ -267,6 +258,7 @@ class SeqToSeqIterativeGenerator(MidiGenerator):
             target_task_token = self.task_generator.target_token
 
             input_sequence = [source_task_token] + step_sequence + [target_task_token] + step_target
+            # print(input_sequence)
             # Convert tokens to ids and prepare input tensor
             input_token_ids = torch.tensor(
                 [[self.tokenizer.token_to_id[token] for token in input_sequence]],
@@ -281,19 +273,16 @@ class SeqToSeqIterativeGenerator(MidiGenerator):
             )
             # Convert output to numpy array and decode tokens
             output = output[0].cpu().numpy()
-            out_tokens = [self.tokenizer.vocab[token_id] for token_id in output]
-
-            # Extract target tokens (everything after the target notes marker)
-            predict_command_position = out_tokens.index(target_task_token)
-            target_tokens = out_tokens[predict_command_position:].copy()
 
             # Convert target tokens back to notes
-            output_target_notes = self.tokenizer.untokenize(target_tokens)
+            output_target_notes = self.tokenizer.decode(output)
 
             # Select only the newly generated notes within the current time step
             notes_within_step = output_target_notes.end < self.target_context_duration + self.time_step
             target_notes = output_target_notes[notes_within_step].copy()
             step_target_notes = target_notes.copy()
+            # FIXME: This does not include the target notes generated in the previous step.
+            print(step_target_notes)
 
             # Adjust the start and end times of the bass notes
             target_notes.start += start_offset
@@ -314,3 +303,10 @@ class SeqToSeqIterativeGenerator(MidiGenerator):
         # Combine all generated bass notes and return
         target_notes = pd.concat(all_target_notes[1:]).reset_index(drop=True)
         return prompt_notes, target_notes
+
+
+generator_types = {
+    "NextTokenGenerator": NextTokenGenerator,
+    "SeqToSeqIterativeGenerator": SeqToSeqIterativeGenerator,
+    "SeqToSeqTokenwiseGenerator": SeqToSeqTokenwiseGenerator,
+}
