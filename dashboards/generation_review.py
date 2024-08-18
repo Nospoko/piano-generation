@@ -205,10 +205,18 @@ def main():
         composer = source["composer"]
         title = source["title"]
 
-        st.subheader("Select Note Range")
-        start_note_id = st.number_input("Start Note ID", min_value=0, max_value=len(prompt_notes) - 1, value=0)
-        end_note_id = st.number_input(
-            "End Note ID", min_value=start_note_id, max_value=len(prompt_notes) - 1, value=len(prompt_notes) - 1
+        note_id_columns = st.columns(2)
+        start_note_id = note_id_columns[0].number_input(
+            "Start Note ID",
+            min_value=0,
+            max_value=len(prompt_notes) - 1,
+            value=0,
+        )
+        end_note_id = note_id_columns[1].number_input(
+            "End Note ID",
+            min_value=start_note_id,
+            max_value=len(prompt_notes) - 1,
+            value=len(prompt_notes) - 1,
         )
 
         prompt_notes, _ = prepare_prompt(
