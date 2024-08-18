@@ -1,28 +1,12 @@
 import torch
 import fortepyan as ff
 import streamlit as st
-from torch import nn
 import streamlit_pianoroll
 
+from model.dummy import DummyModel
 from generation.tasks import task_map
 from model.tokenizers import ExponentialTokenizer, special_tokens
 from generation.generators import NextTokenGenerator, SeqToSeqIterativeGenerator, SeqToSeqTokenwiseGenerator
-
-
-# Dummy model for demonstration purposes
-class DummyModel(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.note = [334, 197, 341, 340, 337, 334, 198]
-        self.it = 0
-
-    def generate_new_tokens(self, idx, max_new_tokens, temperature):
-        # 'VELOCITY_31', 'NOTE_ON_56', '7T', '6T', '3T', 'VELOCITY_31', 'NOTE_OFF_56'
-        out = torch.tensor([self.note[self.it : self.it + max_new_tokens]])
-        self.it += max_new_tokens
-        if self.it > 6:
-            self.it = 0
-        return out
 
 
 def main():

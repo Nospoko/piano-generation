@@ -11,6 +11,7 @@ import streamlit as st
 import streamlit_pianoroll
 from omegaconf import OmegaConf, DictConfig
 
+from model.dummy import DummyModel
 from model.gpt2 import GPT, GPTConfig
 import generation.generators as generators
 from generation.tasks import Task, task_map
@@ -137,10 +138,10 @@ def select_generator():
     return generator
 
 
-def prepare_prompt(
-    task: str,
-    notes: pd.DataFrame,
-):
+def prepare_prompt(task: str, notes: pd.DataFrame, start_note_id: int = None, end_note_id: int = None):
+    if start_note_id is not None and end_note_id is not None:
+        notes = notes.iloc[start_note_id : end_note_id + 1].reset_index(drop=True)
+
     if task == "next_token_prediction":
         return notes, pd.DataFrame(columns=notes.columns)
     task_generator = Task.get_task(task_name=task)
@@ -154,25 +155,42 @@ def upload_midi_file(task: str):
     use_whole_file = st.checkbox("Use whole file as prompt (skip preprocessing)", value=False)
 
     if uploaded_file is not None:
-        # Create a temporary file to save the uploaded MIDI data - fortepyan does not support files :(
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mid") as temp_midi_file:
             temp_midi_file.write(uploaded_file.getvalue())
             temp_midi_path = temp_midi_file.name
 
         try:
-            # Load the MIDI file using fortepyan
             midi_file = ff.MidiFile(temp_midi_path)
             notes = midi_file.piece.df
-
-            if not use_whole_file:
-                notes, _ = prepare_prompt(task=task, notes=notes)
 
             st.success("MIDI file uploaded successfully!")
             streamlit_pianoroll.from_fortepyan(piece=ff.MidiPiece(notes))
 
+            # Add note range selection
+            note_id_cols = st.columns(2)
+            start_note_id = note_id_cols[0].number_input(
+                "Start Note ID",
+                min_value=0,
+                max_value=len(notes) - 1,
+                value=0,
+            )
+            end_note_id = note_id_cols[1].number_input(
+                "End Note ID",
+                min_value=start_note_id,
+                max_value=len(notes) - 1,
+                value=len(notes) - 1,
+            )
+
+            if not use_whole_file:
+                notes, _ = prepare_prompt(task=task, notes=notes, start_note_id=start_note_id, end_note_id=end_note_id)
+            else:
+                notes = notes.iloc[start_note_id : end_note_id + 1].reset_index(drop=True)
+
+            st.subheader("Selected Note Range")
+            streamlit_pianoroll.from_fortepyan(piece=ff.MidiPiece(notes))
+
             return notes
         finally:
-            # Clean up the temporary file
             os.unlink(temp_midi_path)
 
     return None
@@ -181,13 +199,10 @@ def upload_midi_file(task: str):
 def main():
     st.title("MIDI Generation Dashboard")
 
-    # Load model and dataset
     device, checkpoint_path = select_model_and_device()
-
-    # Generation configuration
     generator = select_generator()
+    ctx = nullcontext()
 
-    # Option to use dataset or upload custom MIDI
     use_custom_midi = st.checkbox("Use custom MIDI file", value=False)
 
     if use_custom_midi:
@@ -197,46 +212,59 @@ def main():
             return
     else:
         dataset = dataset_configuration()
-        # Select a prompt from the dataset
         prompt_index = st.number_input("Select prompt index", min_value=0, max_value=len(dataset) - 1, value=0)
         record = dataset[prompt_index]
-        prompt_notes = record["notes"]
+        prompt_notes = pd.DataFrame(record["notes"])
         source = json.loads(record["source"])
         st.json(source)
 
         composer = source["composer"]
         title = source["title"]
 
-        prompt_notes = pd.DataFrame(prompt_notes)
+        st.subheader("Select Note Range")
+        start_note_id = st.number_input("Start Note ID", min_value=0, max_value=len(prompt_notes) - 1, value=0)
+        end_note_id = st.number_input(
+            "End Note ID", min_value=start_note_id, max_value=len(prompt_notes) - 1, value=len(prompt_notes) - 1
+        )
+
         prompt_notes, _ = prepare_prompt(
-            task=generator.task,
-            notes=prompt_notes,
+            task=generator.task, notes=prompt_notes, start_note_id=start_note_id, end_note_id=end_note_id
         )
         prompt_piece = ff.MidiPiece(prompt_notes)
         streamlit_pianoroll.from_fortepyan(piece=prompt_piece)
 
     if st.button("Generate"):
-        with st.spinner("Loading checkpoint..."):
-            checkpoint = load_checkpoint(checkpoint_path, device="cpu")
+        if checkpoint_path is None:
+            model = DummyModel()
+            tokenizer = ExponentialTokenizer(
+                min_time_unit=0.01,
+                n_velocity_bins=32,
+                special_tokens=special_tokens,
+            )
+            model_name = "dummy"
+        else:
+            with st.spinner("Loading checkpoint..."):
+                checkpoint = load_checkpoint(checkpoint_path, device="cpu")
 
-        st.success(f"Model loaded! Best validation loss: {checkpoint['best_val_loss']:.4f}")
-        if "wandb" in checkpoint:
-            st.link_button(label="View Training Run", url=checkpoint["wandb"])
+            st.success(f"Model loaded! Best validation loss: {checkpoint['best_val_loss']:.4f}")
+            if "wandb" in checkpoint:
+                st.link_button(label="View Training Run", url=checkpoint["wandb"])
 
-        cfg = load_cfg(checkpoint=checkpoint)
-        tokenizer = load_tokenizer(cfg=cfg)
+            cfg = load_cfg(checkpoint=checkpoint)
+            tokenizer = load_tokenizer(cfg=cfg)
 
-        st.write("Training config")
-        st.json(OmegaConf.to_container(cfg), expanded=False)
+            st.write("Training config")
+            st.json(OmegaConf.to_container(cfg), expanded=False)
 
-        model_name: str = os.path.basename(checkpoint_path)
-        model_name = model_name.removesuffix(".pt")
+            model_name: str = os.path.basename(checkpoint_path)
+            model_name = model_name.removesuffix(".pt")
 
-        # Initialize model
-        ptdtype = {"float32": torch.float32, "bfloat16": torch.bfloat16, "float16": torch.float16}[cfg.system.dtype]
-        device_type = "cuda" if "cuda" in device else "cpu"
-        ctx = nullcontext() if device_type == "cpu" else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
-        model = initialize_gpt_model(cfg, checkpoint, device)
+            # Initialize model
+            ptdtype = {"float32": torch.float32, "bfloat16": torch.bfloat16, "float16": torch.float16}[cfg.system.dtype]
+            device_type = "cuda" if "cuda" in device else "cpu"
+            ctx = nullcontext() if device_type == "cpu" else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
+            model = initialize_gpt_model(cfg, checkpoint, device)
+
         with st.spinner("Generating MIDI..."):
             with ctx:
                 prompt_notes, generated_notes = generator.generate(
@@ -246,8 +274,8 @@ def main():
                     device=device,
                 )
 
-        prompt_piece = ff.MidiPiece(df=prompt_notes)
-        generated_piece = ff.MidiPiece(df=generated_notes)
+        prompt_piece = ff.MidiPiece(df=prompt_notes.copy())
+        generated_piece = ff.MidiPiece(df=generated_notes.copy())
         if generated_notes is not None and not generated_notes.empty:
             st.success("Generation complete!")
             streamlit_pianoroll.from_fortepyan(piece=generated_piece)

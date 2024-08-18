@@ -65,11 +65,12 @@ class NextTokenGenerator(MidiGenerator):
 
         # Convert output to numpy array and decode tokens
         output = output[0].cpu().numpy()
-        out_tokens = [self.tokenizer.vocab[token_id] for token_id in output]
+        out_tokens = [tokenizer.vocab[token_id] for token_id in output]
 
         # Convert tokens back to notes
-        generated_notes = self.tokenizer.untokenize(out_tokens)
-
+        generated_notes = tokenizer.untokenize(out_tokens)
+        generated_notes.start += prompt_notes.end.max()
+        generated_notes.end += prompt_notes.end.max()
         return prompt_notes, generated_notes
 
 
@@ -152,7 +153,7 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
         tokenizer: ExponentialTokenizer | AwesomeTokenizer,
         device: torch.device,
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
-        input_tokens = self.tokenizer.tokenize(prompt_notes)
+        input_tokens = tokenizer.tokenize(prompt_notes)
         step_target_tokens = []
         output_tokens = []
         source_token = self.task_generator.source_token
@@ -169,6 +170,12 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
             step_input_tokens = [source_token] + step_input_tokens + [target_token] + step_target_tokens
 
             step_token_ids = [tokenizer.token_to_id[token] for token in step_input_tokens]
+
+            step_token_ids = torch.tensor(
+                [[tokenizer.token_to_id[token] for token in step_token_ids]],
+                device=device,
+                dtype=torch.int64,
+            )
             next_token = model.generate_new_tokens(
                 idx=step_token_ids,
                 temperature=self.temperature,
