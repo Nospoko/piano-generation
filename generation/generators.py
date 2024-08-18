@@ -23,15 +23,26 @@ class MidiGenerator(ABC):
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
         pass
 
+    @staticmethod
+    def get_generator(generator_name: str, parameters) -> "MidiGenerator":
+        return generator_types.get(generator_name)(**parameters)
+
+    @staticmethod
+    def default_parameters() -> dict:
+        {
+            "task": "next_token_prediction",
+        }
+
 
 class NextTokenGenerator(MidiGenerator):
     def __init__(
         self,
+        task: str = "next_token_prediction",
         prompt_context_duration: float = 15.0,
         max_new_tokens: int = 1024,
         temperature: float = 1.0,
     ):
-        super().__init__(task="next_token_prediction")
+        super().__init__(task=task)
         self.prompt_context_duration = prompt_context_duration
         self.max_new_tokens = max_new_tokens
         self.temperature = temperature
@@ -73,6 +84,14 @@ class NextTokenGenerator(MidiGenerator):
         generated_notes.end += prompt_notes.end.max()
         return prompt_notes, generated_notes
 
+    @staticmethod
+    def default_parameters():
+        return {
+            "prompt_context_duration": 15.0,
+            "max_new_tokens": 1024,
+            "temperature": 1.0,
+        }
+
 
 class SeqToSeqTokenwiseGenerator(MidiGenerator):
     """
@@ -95,6 +114,16 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
         self.temperature = temperature
         self.max_new_tokens = max_new_tokens
         self.task_generator = Task.get_task(task_name=task)
+
+    @staticmethod
+    def default_parameters() -> dict:
+        return {
+            "prompt_context_duration": 15.0,
+            "target_context_duration": 10.0,
+            "time_step": 5.0,
+            "max_new_tokens": 1024,
+            "temperature": 1.0,
+        }
 
     @staticmethod
     def calculate_token_duration(
@@ -172,7 +201,7 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
             step_token_ids = [tokenizer.token_to_id[token] for token in step_input_tokens]
 
             step_token_ids = torch.tensor(
-                [[tokenizer.token_to_id[token] for token in step_token_ids]],
+                [step_token_ids],
                 device=device,
                 dtype=torch.int64,
             )
@@ -234,6 +263,16 @@ class SeqToSeqIterativeGenerator(MidiGenerator):
         self.temperature = temperature
         self.max_new_tokens = max_new_tokens
         self.task_generator = Task.get_task(task_name=task)
+
+    @staticmethod
+    def default_parameters() -> dict:
+        return {
+            "prompt_context_duration": 15.0,
+            "target_context_duration": 10.0,
+            "time_step": 5.0,
+            "max_new_tokens": 1024,
+            "temperature": 1.0,
+        }
 
     def generate(self, prompt_notes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         return self.generate_subsequence_iteratively(prompt_notes=prompt_notes)

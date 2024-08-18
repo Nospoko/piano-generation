@@ -105,35 +105,19 @@ def initialize_gpt_model(
 
 def select_generator():
     st.header("Generation Configuration")
-    generator_type = st.selectbox(label="Generator", options=generators.generator_types.keys())
+    generator_name = st.selectbox(label="Generator", options=generators.generator_types.keys())
 
-    if generator_type == "NextTokenGenerator":
-        task = st.sidebar.selectbox("Task", ["next_token_prediction"] + list(task_map.keys()))
-        prompt_context_duration = st.sidebar.number_input("Prompt Context Duration", value=20)
-        max_new_tokens = st.sidebar.number_input("Max New Tokens", value=1024)
-        temperature = st.sidebar.number_input("Temperature", value=1.0)
-        generator = generators.NextTokenGenerator(
-            prompt_context_duration=prompt_context_duration,
-            max_new_tokens=max_new_tokens,
-            temperature=temperature,
-        )
-
+    if generator_name == "NextTokenGenerator":
+        tasks = ["next_token_prediction"]
     else:
-        task = st.sidebar.selectbox("Task", list(task_map.keys()))
-        prompt_context_duration = st.sidebar.number_input("Prompt Context Duration", value=15.0)
-        target_context_duration = st.sidebar.number_input("Target Context Duration", value=10.0)
-        time_step = st.sidebar.number_input("Time Step", value=5.0)
-        temperature = st.sidebar.number_input("Temperature", value=1.0)
-        max_new_tokens = st.sidebar.number_input("Max New Tokens", value=1024)
+        tasks = list(task_map.keys())
+    task = st.sidebar.selectbox("Task", tasks)
+    parameters = {"task": task}
 
-        generator = generators.generator_types[generator_type](
-            task=task,
-            prompt_context_duration=prompt_context_duration,
-            target_context_duration=target_context_duration,
-            time_step=time_step,
-            temperature=temperature,
-            max_new_tokens=max_new_tokens,
-        )
+    for parameter, value in generators.generator_types[generator_name].default_parameters().items():
+        parameters |= {parameter: st.sidebar.number_input(label=parameter, value=value)}
+
+    generator = generators.MidiGenerator.get_generator(generator_name=generator_name, parameters=parameters)
 
     return generator
 
