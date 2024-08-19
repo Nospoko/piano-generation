@@ -274,8 +274,19 @@ class SeqToSeqIterativeGenerator(MidiGenerator):
             "temperature": 1.0,
         }
 
-    def generate(self, prompt_notes: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-        return self.generate_subsequence_iteratively(prompt_notes=prompt_notes)
+    def generate(
+        self,
+        prompt_notes: pd.DataFrame,
+        model: nn.Module,
+        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        device: torch.device,
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        return self.generate_subsequence_iteratively(
+            prompt_notes=prompt_notes,
+            model=model,
+            tokenizer=tokenizer,
+            device=device,
+        )
 
     def generate_subsequence_iteratively(
         self,
