@@ -107,7 +107,7 @@ def select_generator():
     st.header("Generation Configuration")
     generator_name = st.selectbox(label="Generator", options=generators.generator_types.keys())
 
-    if generator_name == "NextTokenGenerator":
+    if "NextToken" in generator_name:
         tasks = ["next_token_prediction"]
     else:
         tasks = list(task_map.keys())
