@@ -377,6 +377,7 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
         tokens: list[str],
     ):
         t = 0
+        tokens = tokens.copy()
         result = []
         for token in tokens:
             if re.search(".T$", token) is not None:

@@ -11,8 +11,8 @@ import streamlit as st
 import streamlit_pianoroll
 from omegaconf import OmegaConf, DictConfig
 
-from model.dummy import DummyModel
 from model.gpt2 import GPT, GPTConfig
+from model.dummy import RepeatingModel
 import generation.generators as generators
 from generation.tasks import Task, task_map
 from dashboards.components import download_button
@@ -235,8 +235,8 @@ def main():
         streamlit_pianoroll.from_fortepyan(piece=prompt_piece)
 
     if st.button("Generate"):
-        if checkpoint_path is None:
-            model = DummyModel()
+        if checkpoint_path == "DummyModel":
+            model = RepeatingModel()
             tokenizer = ExponentialTokenizer(
                 min_time_unit=0.01,
                 n_velocity_bins=32,
@@ -274,7 +274,7 @@ def main():
                     tokenizer=tokenizer,
                     device=device,
                 )
-
+        st.dataframe(generated_notes)
         prompt_piece = ff.MidiPiece(df=prompt_notes.copy())
         generated_piece = ff.MidiPiece(df=generated_notes.copy())
         if generated_notes is not None and not generated_notes.empty:
