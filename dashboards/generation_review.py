@@ -107,7 +107,7 @@ def select_generator():
     st.header("Generation Configuration")
     generator_name = st.selectbox(label="Generator", options=generators.generator_types.keys())
 
-    if generator_name == "NextTokenGenerator":
+    if "NextToken" in generator_name:
         tasks = ["next_token_prediction"]
     else:
         tasks = list(task_map.keys())
@@ -125,7 +125,9 @@ def select_generator():
 def prepare_prompt(task: str, notes: pd.DataFrame, start_note_id: int = None, end_note_id: int = None):
     if start_note_id is not None and end_note_id is not None:
         notes = notes.iloc[start_note_id : end_note_id + 1].reset_index(drop=True)
-
+    offset = notes.start.min()
+    notes.start -= offset
+    notes.end -= offset
     if task == "next_token_prediction":
         return notes, pd.DataFrame(columns=notes.columns)
     task_generator = Task.get_task(task_name=task)
@@ -166,7 +168,12 @@ def upload_midi_file(task: str):
             )
 
             if not use_whole_file:
-                notes, _ = prepare_prompt(task=task, notes=notes, start_note_id=start_note_id, end_note_id=end_note_id)
+                notes, _ = prepare_prompt(
+                    task=task,
+                    notes=notes,
+                    start_note_id=start_note_id,
+                    end_note_id=end_note_id,
+                )
             else:
                 notes = notes.iloc[start_note_id : end_note_id + 1].reset_index(drop=True)
 
@@ -218,9 +225,11 @@ def main():
             max_value=len(prompt_notes) - 1,
             value=len(prompt_notes) - 1,
         )
-
         prompt_notes, _ = prepare_prompt(
-            task=generator.task, notes=prompt_notes, start_note_id=start_note_id, end_note_id=end_note_id
+            task=generator.task,
+            notes=prompt_notes,
+            start_note_id=start_note_id,
+            end_note_id=end_note_id,
         )
         prompt_piece = ff.MidiPiece(prompt_notes)
         streamlit_pianoroll.from_fortepyan(piece=prompt_piece)
@@ -271,16 +280,29 @@ def main():
         if generated_notes is not None and not generated_notes.empty:
             st.success("Generation complete!")
             streamlit_pianoroll.from_fortepyan(piece=generated_piece)
-            streamlit_pianoroll.from_fortepyan(piece=prompt_piece, secondary_piece=generated_piece)
 
-            out_piece = ff.MidiPiece(pd.concat([prompt_notes, generated_notes]))
-            # Allow download of the full MIDI with context
             if use_custom_midi:
                 midi_name = f"{model_name}_custom_midi_variation"
             else:
                 midi_name = f"{model_name}_variations_on_{title}_{composer}".lower()
             # Remove punctuation other than whitespace
             midi_name = re.sub(r"[^\w\s]", "", midi_name)
+            generated_midi_path = f"tmp/generation_{midi_name}.mid"
+            generated_piece.to_midi().write(generated_midi_path)
+            with open(generated_midi_path, "rb") as file:
+                st.markdown(
+                    download_button(
+                        file.read(),
+                        generated_midi_path.split("/")[-1],
+                        "Download generated midi",
+                    ),
+                    unsafe_allow_html=True,
+                )
+            os.unlink(generated_midi_path)
+
+            streamlit_pianoroll.from_fortepyan(piece=prompt_piece, secondary_piece=generated_piece)
+            out_piece = ff.MidiPiece(pd.concat([prompt_notes, generated_notes]))
+            # Allow download of the full MIDI with context
             full_midi_path = f"tmp/{midi_name}.mid"
             out_piece.to_midi().write(full_midi_path)
             with open(full_midi_path, "rb") as file:
