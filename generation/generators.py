@@ -349,6 +349,7 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
                 t += dt
         return t
 
+    @staticmethod
     def trim_tokens_front(
         time_step: float,
         tokenizer: ExponentialTokenizer | AwesomeTokenizer,
@@ -371,6 +372,7 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
             tokens = time_tokens + tokens
         return tokens
 
+    @staticmethod
     def trim_tokens_back(
         duration: float,
         tokenizer: ExponentialTokenizer | AwesomeTokenizer,
@@ -396,6 +398,8 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
         device: torch.device,
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
         input_tokens = tokenizer.tokenize(prompt_notes)
+        prompt_notes = tokenizer.untokenize(input_tokens)
+
         step_target_tokens = []
         output_tokens = []
         source_token = self.task_generator.source_token
