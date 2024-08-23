@@ -29,9 +29,13 @@ class MidiGenerator(ABC):
 
     @staticmethod
     def default_parameters() -> dict:
-        {
+        return {
             "task": "next_token_prediction",
         }
+
+    @property
+    def parameters(self) -> dict:
+        return {}
 
 
 class NextTokenGenerator(MidiGenerator):
@@ -92,6 +96,14 @@ class NextTokenGenerator(MidiGenerator):
             "temperature": 1.0,
         }
 
+    @property
+    def parameters(self) -> dict:
+        return {
+            "prompt_context_duration": self.prompt_context_duration,
+            "max_new_tokens": self.max_new_tokens,
+            "temperature": self.temperature,
+        }
+
 
 class SeqToSeqIterativeGenerator(MidiGenerator):
     """
@@ -123,6 +135,16 @@ class SeqToSeqIterativeGenerator(MidiGenerator):
             "time_step": 5.0,
             "max_new_tokens": 1024,
             "temperature": 1.0,
+        }
+
+    @property
+    def parameters(self) -> dict:
+        return {
+            "prompt_context_duration": self.prompt_context_duration,
+            "target_context_duration": self.target_context_duration,
+            "time_step": self.time_step,
+            "max_new_tokens": self.max_new_tokens,
+            "temperature": self.temperature,
         }
 
     @staticmethod
@@ -304,6 +326,14 @@ class NextTokenTokenwiseGenerator(MidiGenerator):
             "temperature": 1.0,
         }
 
+    @property
+    def parameters(self) -> dict:
+        return {
+            "prompt_context_length": self.prompt_context_length,
+            "max_new_tokens": self.max_new_tokens,
+            "temperature": self.temperature,
+        }
+
 
 class SeqToSeqTokenwiseGenerator(MidiGenerator):
     """
@@ -335,6 +365,16 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
             "time_step": 5.0,
             "max_new_tokens": 1024,
             "temperature": 1.0,
+        }
+
+    @property
+    def parameters(self) -> dict:
+        return {
+            "prompt_context_length": self.prompt_context_length,
+            "target_context_length": self.target_context_length,
+            "time_step": self.time_step,
+            "max_new_tokens": self.max_new_tokens,
+            "temperature": self.temperature,
         }
 
     @staticmethod

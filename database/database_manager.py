@@ -3,6 +3,7 @@ import json
 import pandas as pd
 import sqlalchemy as sa
 
+from generation.generators import MidiGenerator
 from database.database_connection import database_cnx
 
 prompt_dtype = {
@@ -267,6 +268,39 @@ def get_all_validation_prompts() -> pd.DataFrame:
     return df
 
 
+def register_model_from_checkpoint(
+    checkpoint: dict,
+    run_name: str,
+):
+    # Hard-coded for the specific naming style
+    milion_parameters = run_name.split("-")[2][:-1]
+    init_from = checkpoint["config"]["init_from"]
+    base_model_id = None
+    if init_from != "scratch":
+        base_model_id = get_model_id(model_name=init_from)
+
+    model_registration = {
+        "name": run_name,
+        "milion_parameters": milion_parameters,
+        "best_val_loss": float(checkpoint["best_val_loss"]),
+        "iter_num": checkpoint["iter_num"],
+        "training_task": checkpoint["config"]["task"],
+        "configs": checkpoint["config"],
+    }
+    if "wandb" in checkpoint.keys():
+        model_registration |= {"wandb_link": checkpoint["wandb"]}
+    if "total_tokens" in checkpoint.keys():
+        model_registration |= {"total_tokens": checkpoint["total_tokens"]}
+    if "train_loss" in checkpoint.keys():
+        model_registration |= {"train_loss": float(checkpoint["train_loss"])}
+    if base_model_id is not None:
+        model_registration |= {"base_model_id": base_model_id}
+
+    model_id = register_model(model_registration=model_registration)
+
+    return model_registration, model_id
+
+
 def register_model(model_registration: dict) -> int:
     query = f"""
     SELECT model_id
@@ -292,11 +326,22 @@ def register_model(model_registration: dict) -> int:
     return df.iloc[0]["model_id"]
 
 
+def register_generator_object(generator: MidiGenerator) -> int:
+    generator_desc = {
+        "generator_name": generator.__class__.__name__,
+        "task": generator.task,
+        "generator_parameters": json.dumps(generator.parameters),
+    }
+    return register_generator(generator=generator_desc)
+
+
 def register_generator(generator: dict) -> int:
     query = f"""
     SELECT generator_id
     FROM {generators_table}
     WHERE generator_name = '{generator['generator_name']}'
+    AND generator_parameters::jsonb = '{generator['generator_parameters']}'::jsonb
+    AND task = '{generator['task']}'
     """
     existing_records = database_cnx.read_sql(sql=query)
 
