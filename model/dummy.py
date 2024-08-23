@@ -16,3 +16,15 @@ class DummyModel(nn.Module):
         if self.it > 6:
             self.it = 0
         return out
+
+
+# Dummy model for debugging
+class RepeatingModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.token_id = 25
+
+    def generate_new_tokens(self, idx: torch.tensor, max_new_tokens, temperature):
+        task_token_id = list(idx[0]).index(self.token_id)
+        out = idx[:, idx.shape[1] - task_token_id : idx.shape[1] - task_token_id + max_new_tokens]
+        return out
