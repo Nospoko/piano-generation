@@ -16,6 +16,7 @@ from model.dummy import RepeatingModel
 import generation.generators as generators
 from generation.tasks import Task, task_map
 from dashboards.components import download_button
+import database.database_manager as database_manager
 from dashboards.utils import dataset_configuration, select_model_and_device
 from model.tokenizers import AwesomeTokenizer, ExponentialTokenizer, special_tokens
 
@@ -301,6 +302,21 @@ def main():
             os.unlink(generated_midi_path)
 
             streamlit_pianoroll.from_fortepyan(piece=prompt_piece, secondary_piece=generated_piece)
+
+            def add_to_database():
+                database_manager.insert_generation(
+                    model_checkpoint=checkpoint,
+                    generator=generator,
+                    generated_notes=generated_notes,
+                    prompt_notes=prompt_notes,
+                )
+
+            st.button(
+                "Add to validation table",
+                key="add",
+                on_click=add_to_database,
+            )
+
             out_piece = ff.MidiPiece(pd.concat([prompt_notes, generated_notes]))
             # Allow download of the full MIDI with context
             full_midi_path = f"tmp/{midi_name}.mid"

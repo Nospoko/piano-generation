@@ -57,6 +57,47 @@ prompt_table = "prompt_notes"
 validation_table = "validation_examples"
 
 
+def insert_generation(
+    model_checkpoint: dict,
+    generator: MidiGenerator,
+    generated_notes: pd.DataFrame,
+    prompt_notes: pd.DataFrame,
+):
+    generated_notes = generated_notes.to_json()
+    prompt_notes = prompt_notes.to_json()
+
+    # Get or create IDs
+    generator_id = register_generator_object(generator)
+    model_id = register_model_from_checkpoint(checkpoint=model_checkpoint)
+
+    # Check if the record already exists
+    query = f"""
+    SELECT generation_id
+    FROM {generations_table}
+    WHERE generator_id = {generator_id}
+      AND prompt_notes::jsonb = {prompt_notes}::jsonb
+      AND model_id = {model_id}
+    """
+    existing_record = database_cnx.read_sql(sql=query)
+
+    if existing_record.empty:
+        generation_data = {
+            "generator_id": generator_id,
+            "model_id": model_id,
+            "prompt_notes": prompt_notes,
+            "generated_notes": generated_notes,
+        }
+        # Insert the generation data
+        df = pd.DataFrame([generation_data])
+        database_cnx.to_sql(
+            df=df,
+            table=generations_table,
+            dtype=generations_dtype,
+            index=False,
+            if_exists="append",
+        )
+
+
 def insert_generated_notes(
     model: dict,
     prompt: dict,
@@ -230,6 +271,46 @@ def get_unique_values(column, table):
 def get_all_models() -> pd.DataFrame:
     query = f"SELECT * FROM {models_table}"
     df = database_cnx.read_sql(sql=query)
+    return df
+
+
+def select_models_with_generations() -> pd.DataFrame:
+    query = """
+    SELECT
+        m.model_id,
+        m.base_model_id,
+        m.name,
+        m.milion_parameters,
+        m.best_val_loss,
+        m.train_loss,
+        m.iter_num,
+        m.total_tokens,
+        m.training_task,
+        m.wandb_link,
+        m.created_at
+    FROM models m
+    WHERE m.model_id IN (
+        SELECT DISTINCT model_id
+        FROM generations
+    )
+    ORDER BY m.model_id
+    """
+    df = database_cnx.read_sql(sql=query)
+
+    # Fetch configs separately
+    configs_query = """
+    SELECT model_id, configs
+    FROM models
+    WHERE model_id IN (
+        SELECT DISTINCT model_id
+        FROM generations
+    )
+    """
+    configs_df = database_cnx.read_sql(sql=configs_query)
+
+    # Merge the results
+    df = pd.merge(df, configs_df, on="model_id", how="left")
+
     return df
 
 
