@@ -306,13 +306,14 @@ def main():
             def add_to_database():
                 database_manager.insert_generation(
                     model_checkpoint=checkpoint,
+                    model_name=model_name,
                     generator=generator,
                     generated_notes=generated_notes,
                     prompt_notes=prompt_notes,
                 )
 
             st.button(
-                "Add to validation table",
+                "Add to database",
                 key="add",
                 on_click=add_to_database,
             )
