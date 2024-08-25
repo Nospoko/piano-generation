@@ -19,7 +19,7 @@ def format_model_params(model_params):
 def main():
     st.title("MIDI Transformers Database Browser")
 
-    tab1, tab2, tab3, tab4 = st.tabs(["Model Predictions", "Models", "Generation Parameters", "Prompt Notes"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Model Predictions", "Models", "Generators Parameters", "Prompt Notes"])
 
     with tab1:
         st.header("Model Predictions")
@@ -51,7 +51,17 @@ def main():
             selected_model_id = selected_model["model_id"]
 
             # Fetch all predictions for the selected model and prompt
-            predictions_df = database_manager.get_model_predictions(model_filters={"model_id": selected_model_id})
+            all_predictions_df = database_manager.get_model_predictions(model_filters={"model_id": selected_model_id})
+
+            # Get unique tasks for this model's predictions
+            tasks = all_predictions_df["task"].unique().tolist()
+            selected_task = st.selectbox("Select Task", ["All"] + tasks, key="task_selector")
+
+            # Filter predictions based on selected task
+            if selected_task != "All":
+                predictions_df = all_predictions_df[all_predictions_df["task"] == selected_task]
+            else:
+                predictions_df = all_predictions_df
 
             if not predictions_df.empty:
                 for _, row in predictions_df.iterrows():
