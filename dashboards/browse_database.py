@@ -1,5 +1,4 @@
 import os
-import json
 
 import pandas as pd
 import fortepyan as ff
@@ -50,26 +49,28 @@ def main():
 
             selected_model_id = selected_model["model_id"]
 
-            # Fetch all predictions for the selected model and prompt
-            all_predictions_df = database_manager.get_model_predictions(model_filters={"model_id": selected_model_id})
-
             # Get unique tasks for this model's predictions
-            tasks = all_predictions_df["task"].unique().tolist()
-            selected_task = st.selectbox("Select Task", ["All"] + tasks, key="task_selector")
-
+            tasks = database_manager.get_model_tasks(model_id=selected_model_id)
+            selected_task = st.selectbox("Select Task", tasks + ["All"], key="task_selector")
             # Filter predictions based on selected task
             if selected_task != "All":
-                predictions_df = all_predictions_df[all_predictions_df["task"] == selected_task]
+                generator_filters = {"task": selected_task}
             else:
-                predictions_df = all_predictions_df
+                generator_filters = None
+
+            # Fetch predictions for the selected model and task
+            predictions_df = database_manager.get_model_predictions(
+                model_filters={"model_id": selected_model_id},
+                generator_filters=generator_filters,
+            )
 
             if not predictions_df.empty:
                 for _, row in predictions_df.iterrows():
                     # generator = database_manager.get_generator(row["generator_id"]).iloc[0].to_dict()
-                    prompt_notes = json.loads(row["prompt_notes"])
+                    prompt_notes = row["prompt_notes"]
                     prompt_notes_df = pd.DataFrame(prompt_notes)
 
-                    generated_notes = json.loads(row["generated_notes"])
+                    generated_notes = row["generated_notes"]
                     generated_notes_df = pd.DataFrame(generated_notes)
                     generated_piece = ff.MidiPiece(df=generated_notes_df)
                     prompt_piece = ff.MidiPiece(df=prompt_notes_df)

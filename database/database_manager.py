@@ -242,7 +242,6 @@ def get_model_predictions(
     SELECT gn.*
     FROM {generations_table} gn
     JOIN {models_table} m ON gn.model_id = m.model_id
-    JOIN {prompt_table} pn ON gn.prompt_id = pn.prompt_id
     JOIN {generators_table} g ON gn.generator_id = g.generator_id
     WHERE 1=1
     """
@@ -468,6 +467,18 @@ def register_prompt_notes(prompt_notes: dict) -> int:
     )
     df = database_cnx.read_sql(sql=query)
     return df.iloc[0]["prompt_id"]
+
+
+def get_model_tasks(model_id: int) -> list:
+    query = f"""
+    SELECT DISTINCT g.task
+    FROM {generations_table} gn
+    JOIN {generators_table} g ON gn.generator_id = g.generator_id
+    WHERE gn.model_id = {model_id}
+    ORDER BY g.task
+    """
+    df = database_cnx.read_sql(sql=query)
+    return df["task"].tolist()
 
 
 def remove_models_without_generations():
