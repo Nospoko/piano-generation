@@ -75,6 +75,33 @@ def main():
                     generated_piece = ff.MidiPiece(df=generated_notes_df)
                     prompt_piece = ff.MidiPiece(df=prompt_notes_df)
 
+                    st.write("#### Prompt")
+                    try:
+                        streamlit_pianoroll.from_fortepyan(piece=prompt_piece)
+                    except DuplicateWidgetID:
+                        st.write("Duplicate widget")
+                    st.write("#### Generated")
+                    try:
+                        streamlit_pianoroll.from_fortepyan(piece=generated_piece)
+                    except DuplicateWidgetID:
+                        st.write("Duplicate widget")
+
+                    # Allow download of the generated MIDI with
+                    midi_name = f"{selected_model_name}_{selected_model_tokens:.2f}_generation"
+                    midi_path = f"tmp/{midi_name}.mid"
+                    generated_piece.to_midi().write(midi_path)
+                    with open(midi_path, "rb") as file:
+                        st.markdown(
+                            download_button(
+                                file.read(),
+                                midi_path.split("/")[-1],
+                                "Download midi with context",
+                            ),
+                            unsafe_allow_html=True,
+                        )
+                    os.unlink(midi_path)
+                    st.write("#### Together")
+
                     try:
                         streamlit_pianoroll.from_fortepyan(piece=prompt_piece, secondary_piece=generated_piece)
                     except DuplicateWidgetID:
