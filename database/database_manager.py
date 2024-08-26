@@ -1,4 +1,6 @@
+import re
 import json
+import datetime
 
 import pandas as pd
 import sqlalchemy as sa
@@ -44,17 +46,17 @@ generations_dtype = {
     "generated_notes": sa.JSON,
 }
 
-validation_examples_dtype = {
-    "example_id": sa.Integer,
-    "generator_id": sa.Integer,
-    "prompt_id": sa.Integer,
+sources_dtype = {
+    "source_id": sa.Integer,
+    "source": sa.JSON,
+    "notes": sa.JSON,
 }
 
 models_table = "models"
 generators_table = "generators"
 generations_table = "generations"
 prompt_table = "prompt_notes"
-validation_table = "validation_examples"
+sources_table = "sources"
 
 
 def insert_generation(
@@ -63,13 +65,22 @@ def insert_generation(
     generator: MidiGenerator,
     generated_notes: pd.DataFrame,
     prompt_notes: pd.DataFrame,
+    source_notes: pd.DataFrame,
+    source: dict,
 ):
     generated_notes = generated_notes.to_dict()
     prompt_notes = prompt_notes.to_dict()
 
     # Get or create IDs
     generator_id = register_generator_object(generator)
-    _, model_id = register_model_from_checkpoint(checkpoint=model_checkpoint, model_name=model_name)
+    _, model_id = register_model_from_checkpoint(
+        checkpoint=model_checkpoint,
+        model_name=model_name,
+    )
+    source_id = insert_source(
+        notes=source_notes,
+        source=source,
+    )
 
     # Check if the record already exists
     query = f"""
@@ -77,6 +88,7 @@ def insert_generation(
     FROM {generations_table}
     WHERE generator_id = {generator_id}
       AND prompt_notes::text = '{json.dumps(prompt_notes)}'::text
+      AND source_id = source_id
       AND model_id = {model_id}
     """
     existing_record = database_cnx.read_sql(sql=query)
@@ -85,6 +97,7 @@ def insert_generation(
         generation_data = {
             "generator_id": generator_id,
             "model_id": model_id,
+            "source_id": source_id,
             "prompt_notes": prompt_notes,
             "generated_notes": generated_notes,
         }
@@ -99,48 +112,38 @@ def insert_generation(
         )
 
 
-def insert_generated_notes(
-    model: dict,
-    prompt: dict,
-    generator: dict,
-    generated_notes: pd.DataFrame,
-):
-    generated_notes = generated_notes.to_json()
-    prompt["prompt_notes"] = json.dumps(prompt["prompt_notes"])
-
-    # Get or create IDs
-    generator_id = register_generator(generator)
-    prompt_id = register_prompt_notes(prompt)
-    model_id = register_model(model_registration=model)
+def insert_source(source: dict, notes: pd.DataFrame) -> int:
+    # Convert notes DataFrame to dict
+    notes = notes.to_dict()
 
     # Check if the record already exists
     query = f"""
-    SELECT generation_id
-    FROM {generations_table}
-    WHERE generator_id = {generator_id}
-      AND prompt_id = {prompt_id}
-      AND model_id = {model_id}
+    SELECT source_id
+    FROM {sources_table}
+    WHERE source::text = '{json.dumps(source)}'::text
     """
-
     existing_record = database_cnx.read_sql(sql=query)
 
     if existing_record.empty:
-        generation_data = {
-            "generator_id": generator_id,
-            "prompt_id": prompt_id,
-            "model_id": model_id,
-            "prompt_notes": prompt["prompt_notes"],
-            "generated_notes": generated_notes,
+        source_data = {
+            "source": source,
+            "notes": notes,
         }
-        # Insert the generation data
-        df = pd.DataFrame([generation_data])
+        # Insert the source data
+        df = pd.DataFrame([source_data])
         database_cnx.to_sql(
             df=df,
-            table=generations_table,
-            dtype=generations_dtype,
+            table=sources_table,
+            dtype=sources_dtype,
             index=False,
             if_exists="append",
         )
+
+        # Fetch the inserted record's ID
+        inserted_record = database_cnx.read_sql(sql=query)
+        return inserted_record.iloc[0]["source_id"]
+    else:
+        return existing_record.iloc[0]["source_id"]
 
 
 def get_generator(generator_id: int) -> pd.DataFrame:
@@ -153,34 +156,11 @@ def get_generator(generator_id: int) -> pd.DataFrame:
     return df
 
 
-def get_prompt(prompt_id: int) -> pd.DataFrame:
+def get_source(source_id: int) -> pd.DataFrame:
     query = f"""
     SELECT *
-    FROM {prompt_table}
-    WHERE prompt_id = {prompt_id}
-    """
-    df = database_cnx.read_sql(sql=query)
-    return df
-
-
-def get_prompts_for_model(model_id: int) -> pd.DataFrame:
-    query = f"""
-    SELECT DISTINCT
-        pn.*
-    FROM {prompt_table} pn
-    JOIN {generations_table} gn ON pn.prompt_id = gn.prompt_id
-    WHERE gn.model_id = {model_id}
-    """
-    df = database_cnx.read_sql(sql=query)
-    return df
-
-
-def get_generator_for_model_and_prompt(model_id: int, prompt_id: int) -> pd.DataFrame:
-    query = f"""
-    SELECT DISTINCT g.*
-    FROM {generators_table} g
-    JOIN {generations_table} gn ON g.generator_id = gn.generator_id
-    WHERE gn.model_id = {model_id} AND gn.prompt_id = {prompt_id}
+    FROM {sources_table}
+    WHERE source_id = {source_id}
     """
     df = database_cnx.read_sql(sql=query)
     return df
@@ -223,14 +203,6 @@ def purge_model(model_name: str):
     WHERE name = '{model_name}'
     """
     database_cnx.execute(model_query)
-
-
-def remove_validation_prompt(validation_prompt_id: int):
-    query = f"""
-    DELETE FROM {validation_table}
-    WHERE example_id = {validation_prompt_id}
-    """
-    database_cnx.execute(query=query)
 
 
 def get_model_predictions(
@@ -326,29 +298,6 @@ def get_all_prompt_notes() -> pd.DataFrame:
     return df
 
 
-def get_validation_examples_for_task(task: str) -> pd.DataFrame:
-    query = f"""
-    SELECT *
-    FROM {validation_table} ve
-    JOIN {prompt_table} pn ON ve.prompt_id = pn.prompt_id
-    JOIN {generators_table} g ON ve.generator_id = g.generator_id
-    WHERE g.task = '{task}'
-    """
-    df = database_cnx.read_sql(sql=query)
-    return df
-
-
-def get_all_validation_prompts() -> pd.DataFrame:
-    query = f"""
-    SELECT *
-    FROM {validation_table} ve
-    JOIN {prompt_table} pn ON ve.prompt_id = pn.prompt_id
-    JOIN {generators_table} g ON ve.generator_id = g.generator_id
-    """
-    df = database_cnx.read_sql(sql=query)
-    return df
-
-
 def register_model_from_checkpoint(
     checkpoint: dict,
     model_name: str,
@@ -387,12 +336,21 @@ def register_model(model_registration: dict) -> int:
     SELECT model_id
     FROM {models_table}
     WHERE name = '{model_registration['name']}'
+    AND total_tokens = '{model_registration['total_tokens']}'
     """
 
     existing_records = database_cnx.read_sql(sql=query)
 
     if not existing_records.empty:
         return existing_records.iloc[0]["model_id"]
+
+    # Extract datetime from model name
+    date_match = re.search(r"(\d{4}-\d{2}-\d{2}-\d{2}-\d{2})", model_registration["name"])
+    if date_match:
+        created_at = datetime.strptime(date_match.group(1), "%Y-%m-%d-%H-%M")
+    else:
+        created_at = datetime.now()  # Use current time if pattern not found
+    model_registration |= {"created_at": created_at}
 
     df = pd.DataFrame([model_registration])
     database_cnx.to_sql(

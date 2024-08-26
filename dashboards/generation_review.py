@@ -177,15 +177,19 @@ def upload_midi_file(task: str):
                 )
             else:
                 notes = notes.iloc[start_note_id : end_note_id + 1].reset_index(drop=True)
-
+            source = {
+                "midi_name": temp_midi_path,
+                "start": start_note_id,
+                "end": end_note_id,
+            }
             st.subheader("Selected Note Range")
             streamlit_pianoroll.from_fortepyan(piece=ff.MidiPiece(notes))
 
-            return notes
+            return notes, source
         finally:
             os.unlink(temp_midi_path)
 
-    return None
+    return None, None
 
 
 def main():
@@ -198,15 +202,18 @@ def main():
     use_custom_midi = st.checkbox("Use custom MIDI file", value=False)
 
     if use_custom_midi:
-        prompt_notes = upload_midi_file(task=generator.task)
-        if prompt_notes is None:
+        source_notes, source = upload_midi_file(task=generator.task)
+        if source_notes is None:
             st.warning("Please upload a MIDI file to continue.")
             return
+        # Source notes are the same as prompt notes because no extraction needed
+        prompt_notes = source_notes.copy()
+
     else:
         dataset = dataset_configuration()
         prompt_index = st.number_input("Select prompt index", min_value=0, max_value=len(dataset) - 1, value=0)
         record = dataset[prompt_index]
-        prompt_notes = pd.DataFrame(record["notes"])
+        source_notes = pd.DataFrame(record["notes"])
         source = json.loads(record["source"])
         st.json(source)
 
@@ -217,21 +224,26 @@ def main():
         start_note_id = note_id_columns[0].number_input(
             "Start Note ID",
             min_value=0,
-            max_value=len(prompt_notes) - 1,
+            max_value=len(source_notes) - 1,
             value=0,
         )
         end_note_id = note_id_columns[1].number_input(
             "End Note ID",
             min_value=start_note_id,
-            max_value=len(prompt_notes) - 1,
-            value=len(prompt_notes) - 1,
+            max_value=len(source_notes) - 1,
+            value=len(source_notes) - 1,
         )
+        # Extract prompt by Task.generate
         prompt_notes, _ = prepare_prompt(
             task=generator.task,
-            notes=prompt_notes,
+            notes=source_notes,
             start_note_id=start_note_id,
             end_note_id=end_note_id,
         )
+        source |= {
+            "start": start_note_id,
+            "end": end_note_id,
+        }
         prompt_piece = ff.MidiPiece(prompt_notes)
         streamlit_pianoroll.from_fortepyan(piece=prompt_piece)
 
@@ -250,7 +262,10 @@ def main():
 
             st.success(f"Model loaded! Best validation loss: {checkpoint['best_val_loss']:.4f}")
             if "wandb" in checkpoint:
-                st.link_button(label="View Training Run", url=checkpoint["wandb"])
+                st.link_button(
+                    label="View Training Run",
+                    url=checkpoint["wandb"],
+                )
 
             cfg = load_cfg(checkpoint=checkpoint)
             tokenizer = load_tokenizer(cfg=cfg)
@@ -270,7 +285,7 @@ def main():
         with st.spinner("Generating MIDI..."):
             with ctx:
                 prompt_notes, generated_notes = generator.generate(
-                    prompt_notes=prompt_notes,
+                    prompt_notes=source_notes,
                     model=model,
                     tokenizer=tokenizer,
                     device=device,
@@ -310,6 +325,8 @@ def main():
                     generator=generator,
                     generated_notes=generated_notes,
                     prompt_notes=prompt_notes,
+                    source_notes=source_notes,
+                    source=source,
                 )
 
             st.button(
