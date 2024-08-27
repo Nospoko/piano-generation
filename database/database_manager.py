@@ -157,6 +157,18 @@ def get_source(source_id: int) -> pd.DataFrame:
     return df
 
 
+def get_validation_sources() -> pd.DataFrame:
+    # Select the first 16 sources for validation purposes
+    query = f"""
+    SELECT *
+    FROM {sources_table}
+    ORDER BY source_id ASC
+    LIMIT 16
+    """
+    df = database_cnx.read_sql(sql=query)
+    return df
+
+
 def get_all_sources() -> pd.DataFrame:
     query = f"""
     SELECT *
