@@ -8,15 +8,6 @@ import sqlalchemy as sa
 from generation.generators import MidiGenerator
 from database.database_connection import database_cnx
 
-prompt_dtype = {
-    "prompt_id": sa.Integer,
-    "midi_name": sa.String(255),
-    "start_time": sa.Float,
-    "end_time": sa.Float,
-    "source": sa.JSON,
-    "prompt_notes": sa.JSON,
-}
-
 model_dtype = {
     "model_id": sa.Integer,
     "base_model_id": sa.Integer,
@@ -166,6 +157,16 @@ def get_source(source_id: int) -> pd.DataFrame:
     return df
 
 
+def get_all_sources() -> pd.DataFrame:
+    query = f"""
+    SELECT *
+    FROM {sources_table}
+    WHERE 1 = 1
+    """
+    df = database_cnx.read_sql(sql=query)
+    return df
+
+
 def get_models(model_name: str) -> pd.DataFrame:
     query = f"""
     SELECT *
@@ -292,12 +293,6 @@ def get_all_generators() -> pd.DataFrame:
     return df
 
 
-def get_all_prompt_notes() -> pd.DataFrame:
-    query = f"SELECT * FROM {prompt_table}"
-    df = database_cnx.read_sql(sql=query)
-    return df
-
-
 def register_model_from_checkpoint(
     checkpoint: dict,
     model_name: str,
@@ -400,31 +395,6 @@ def register_generator(generator: dict) -> int:
     )
     df = database_cnx.read_sql(sql=query)
     return df.iloc[0]["generator_id"]
-
-
-def register_prompt_notes(prompt_notes: dict) -> int:
-    query = f"""
-    SELECT prompt_id
-    FROM {prompt_table}
-    WHERE start_time = {prompt_notes['start_time']}
-      AND end_time = {prompt_notes['end_time']}
-      AND midi_name = '{prompt_notes['midi_name']}'
-    """
-    existing_records = database_cnx.read_sql(sql=query)
-
-    if not existing_records.empty:
-        return existing_records.iloc[0]["prompt_id"]
-
-    df = pd.DataFrame([prompt_notes])
-    database_cnx.to_sql(
-        df=df,
-        table=prompt_table,
-        dtype=prompt_dtype,
-        index=False,
-        if_exists="append",
-    )
-    df = database_cnx.read_sql(sql=query)
-    return df.iloc[0]["prompt_id"]
 
 
 def get_model_tasks(model_id: int) -> list:
