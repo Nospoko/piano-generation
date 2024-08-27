@@ -75,8 +75,9 @@ def main():
                 prompt_notes = row["prompt_notes"]
                 prompt_notes_df = pd.DataFrame(prompt_notes)
 
-                source = database_manager.get_source(source_id=row["source_id"])
-                st.json(source["source"])
+                if row["source_id"] is not None:
+                    source = database_manager.get_source(source_id=row["source_id"])
+                    st.json(source.iloc[0]["source"])
 
                 generated_notes = row["generated_notes"]
                 generated_notes_df = pd.DataFrame(generated_notes)
@@ -158,7 +159,7 @@ def main():
 
     with tab4:
         st.header("Prompt Notes")
-        prompts_df = database_manager.get_all_prompt_notes()
+        prompts_df = database_manager.get_all_sources()
         st.write(prompts_df)
 
 

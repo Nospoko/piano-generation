@@ -123,12 +123,16 @@ def select_generator():
     return generator
 
 
-def prepare_prompt(task: str, notes: pd.DataFrame, start_note_id: int = None, end_note_id: int = None):
+def slice_source_notes(notes: pd.DataFrame, start_note_id: int = None, end_note_id: int = None):
     if start_note_id is not None and end_note_id is not None:
         notes = notes.iloc[start_note_id : end_note_id + 1].reset_index(drop=True)
     offset = notes.start.min()
     notes.start -= offset
     notes.end -= offset
+    return notes
+
+
+def prepare_prompt(task: str, notes: pd.DataFrame):
     if task == "next_token_prediction":
         return notes, pd.DataFrame(columns=notes.columns)
     task_generator = Task.get_task(task_name=task)
@@ -167,13 +171,15 @@ def upload_midi_file(task: str):
                 max_value=len(notes) - 1,
                 value=len(notes) - 1,
             )
-
+            notes = slice_source_notes(
+                notes=notes,
+                start_note_id=start_note_id,
+                end_note_id=end_note_id,
+            )
             if not use_whole_file:
                 notes, _ = prepare_prompt(
                     task=task,
                     notes=notes,
-                    start_note_id=start_note_id,
-                    end_note_id=end_note_id,
                 )
             else:
                 notes = notes.iloc[start_note_id : end_note_id + 1].reset_index(drop=True)
@@ -234,11 +240,14 @@ def main():
             value=len(source_notes) - 1,
         )
         # Extract prompt by Task.generate
-        prompt_notes, _ = prepare_prompt(
-            task=generator.task,
+        source_notes = slice_source_notes(
             notes=source_notes,
             start_note_id=start_note_id,
             end_note_id=end_note_id,
+        )
+        prompt_notes, _ = prepare_prompt(
+            task=generator.task,
+            notes=source_notes,
         )
         source |= {
             "start": start_note_id,
@@ -285,7 +294,7 @@ def main():
         with st.spinner("Generating MIDI..."):
             with ctx:
                 prompt_notes, generated_notes = generator.generate(
-                    prompt_notes=source_notes,
+                    prompt_notes=prompt_notes,
                     model=model,
                     tokenizer=tokenizer,
                     device=device,

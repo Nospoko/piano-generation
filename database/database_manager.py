@@ -1,6 +1,6 @@
 import re
 import json
-import datetime
+from datetime import datetime
 
 import pandas as pd
 import sqlalchemy as sa
