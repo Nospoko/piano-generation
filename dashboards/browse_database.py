@@ -7,7 +7,7 @@ import streamlit_pianoroll
 from streamlit.errors import DuplicateWidgetID
 
 from dashboards.components import download_button
-import database.database_manager as database_manager
+import piano_generation.database.database_manager as database_manager
 
 
 def format_model_params(model_params):

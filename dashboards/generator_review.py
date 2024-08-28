@@ -2,7 +2,6 @@ import torch
 import fortepyan as ff
 import streamlit as st
 import streamlit_pianoroll
-
 from model.dummy import DummyModel
 from generation.tasks import task_map
 from model.tokenizers import ExponentialTokenizer, special_tokens

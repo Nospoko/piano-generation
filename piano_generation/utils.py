@@ -1,7 +1,6 @@
 import torch
-from omegaconf import OmegaConf, DictConfig
-
 from model.gpt2 import GPT, GPTConfig
+from omegaconf import OmegaConf, DictConfig
 from model.tokenizers import AwesomeTokenizer, ExponentialTokenizer, special_tokens
 
 

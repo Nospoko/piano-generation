@@ -11,14 +11,14 @@ import streamlit as st
 import streamlit_pianoroll
 from omegaconf import OmegaConf
 
-from model.dummy import RepeatingModel
-import generation.generators as generators
-from generation.tasks import Task, task_map
 from dashboards.components import download_button
-import database.database_manager as database_manager
-from model.tokenizers import ExponentialTokenizer, special_tokens
+from piano_generation.generation.tasks import task_map
+import piano_generation.generation.generators as generators
+from piano_generation.model.tokenizers import special_tokens
+import piano_generation.database.database_manager as database_manager
+from piano_generation import Task, RepeatingModel, ExponentialTokenizer
 from dashboards.utils import dataset_configuration, select_model_and_device
-from utils import load_cfg, load_tokenizer, load_checkpoint, initialize_gpt_model
+from piano_generation.utils import load_cfg, load_tokenizer, load_checkpoint, initialize_gpt_model
 
 
 def select_generator():

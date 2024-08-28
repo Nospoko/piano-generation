@@ -4,7 +4,6 @@ from datetime import datetime
 
 import pandas as pd
 import sqlalchemy as sa
-
 from generation.generators import MidiGenerator
 from database.database_connection import database_cnx
 
