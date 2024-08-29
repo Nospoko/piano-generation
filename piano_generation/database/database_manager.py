@@ -4,8 +4,9 @@ from datetime import datetime
 
 import pandas as pd
 import sqlalchemy as sa
-from generation.generators import MidiGenerator
-from database.database_connection import database_cnx
+
+from piano_generation import MidiGenerator
+from piano_generation.database.database_connection import database_cnx
 
 model_dtype = {
     "model_id": sa.Integer,

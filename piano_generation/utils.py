@@ -1,7 +1,8 @@
 import torch
-from model.gpt2 import GPT, GPTConfig
 from omegaconf import OmegaConf, DictConfig
-from model.tokenizers import AwesomeTokenizer, ExponentialTokenizer, special_tokens
+
+from piano_generation import GPT, GPTConfig
+from piano_generation.model.tokenizers import AwesomeTokenizer, ExponentialTokenizer, special_tokens
 
 
 def load_cfg(checkpoint: dict) -> DictConfig:

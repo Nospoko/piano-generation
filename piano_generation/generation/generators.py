@@ -4,8 +4,8 @@ from abc import ABC, abstractmethod
 import torch
 import pandas as pd
 from torch import nn
-from generation.tasks import Task
-from model.tokenizers import AwesomeTokenizer, ExponentialTokenizer
+
+from piano_generation import Task, AwesomeTokenizer, ExponentialTokenizer
 
 
 class MidiGenerator(ABC):

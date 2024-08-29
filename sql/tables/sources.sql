@@ -5,4 +5,4 @@ CREATE TABLE sources (
 );
 
 CREATE UNIQUE INDEX unique_source
-ON generators (source::text);
+ON sources (source::text);

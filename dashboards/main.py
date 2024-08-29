@@ -1,7 +1,6 @@
 import streamlit as st
 
 from dashboards.browse_database import main as browse_dataset
-from dashboards.generator_review import main as generator_review
 from dashboards.generation_review import main as generation_review
 
 
@@ -12,8 +11,6 @@ def main():
     match dashboard:
         case "browse_dataset":
             browse_dataset()
-        case "generator_review":
-            generator_review()
         case "generation_review":
             generation_review()
 
