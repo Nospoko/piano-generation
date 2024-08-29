@@ -6,10 +6,11 @@ from contextlib import nullcontext
 import torch
 import pandas as pd
 
+from piano_generation.generation.tasks import task_map
 import piano_generation.generation.generators as generators
 import piano_generation.database.database_manager as database_manager
+from piano_generation import GPT, Task, AwesomeTokenizer, ExponentialTokenizer
 from piano_generation.utils import load_cfg, load_tokenizer, initialize_gpt_model
-from piano_generation import GPT, Task, AwesomeTokenizer, ExponentialTokenizer, task_map
 
 
 def run_generation_step(
