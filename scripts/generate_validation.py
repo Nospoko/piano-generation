@@ -58,27 +58,46 @@ def run_validation_for_task(
     ctx: nullcontext,
 ):
     task = Task.get_task(task_name=task_name)
-    generator = generators.SeqToSeqTokenwiseGenerator(
-        task=task_name,
-        prompt_context_length=1024,
-        target_context_length=512,
-        time_step=2,
-        temperature=1.0,
-        max_new_tokens=4096,
-    )
+    generators_to_use = [
+        generators.SeqToSeqTokenwiseGenerator(
+            task=task_name,
+            prompt_context_length=1024,
+            target_context_length=512,
+            time_step=2,
+            temperature=1.0,
+            max_new_tokens=4096,
+        ),
+        generators.SeqToSeqTokenwiseGenerator(
+            task=task_name,
+            prompt_context_length=1024,
+            target_context_length=512,
+            time_step=2,
+            temperature=0.8,
+            max_new_tokens=4096,
+        ),
+        generators.SeqToSeqTokenwiseGenerator(
+            task=task_name,
+            prompt_context_length=1024,
+            target_context_length=512,
+            time_step=2,
+            temperature=1.2,
+            max_new_tokens=4096,
+        ),
+    ]
 
     print(f"Running validation for task: {task_name}")
-    with ctx:
-        run_generation_step(
-            model=model,
-            checkpoint=checkpoint,
-            run_name=run_name,
-            validation_examples=validation_examples,
-            tokenizer=tokenizer,
-            generator=generator,
-            task=task,
-            device=device,
-        )
+    for generator in generators_to_use:
+        with ctx:
+            run_generation_step(
+                model=model,
+                checkpoint=checkpoint,
+                run_name=run_name,
+                validation_examples=validation_examples,
+                tokenizer=tokenizer,
+                generator=generator,
+                task=task,
+                device=device,
+            )
 
 
 def main(model_path: str, device: str, tasks: List[str]):
