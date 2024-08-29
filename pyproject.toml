@@ -24,6 +24,8 @@ dependencies = [
     "streamlit==1.36.0",
     "streamlit-pianoroll>=0.7.1",
     "torch>=2.1.2",
+    "sqlalchemy>=1.4.48",
+    "psycopg2>=2.9.7",
 ]
 requires-python = ">=3.9"
 

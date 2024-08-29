@@ -24,10 +24,10 @@ def run_generation_step(
     device: torch.device,
 ):
     for idx, example in validation_examples.iterrows():
-        source_notes = pd.DataFrame(example["source_notes"])
+        source_notes = pd.DataFrame(example["notes"])
         source = example["source"]
 
-        prompt_notes = task.generate(notes=source_notes)
+        prompt_notes, _ = task.generate(notes=source_notes)
 
         prompt_notes, generation = generator.generate(
             prompt_notes=prompt_notes,
@@ -72,7 +72,7 @@ def run_validation_for_task(
         run_generation_step(
             model=model,
             checkpoint=checkpoint,
-            run_name=f"{run_name}_{task_name}",
+            run_name=run_name,
             validation_examples=validation_examples,
             tokenizer=tokenizer,
             generator=generator,

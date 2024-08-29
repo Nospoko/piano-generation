@@ -3,7 +3,9 @@ fortepyan>=0.2.8
 hydra-core>=1.3.2
 midi_tokenizers @ git+https://github.com/Nospoko/midi-tokenizers
 pandas~=2.1.4
+psycopg2>=2.9.7
 python-dotenv==1.0.0
+sqlalchemy>=1.4.48
 streamlit==1.36.0
 streamlit-pianoroll>=0.7.1
 torch>=2.1.2
