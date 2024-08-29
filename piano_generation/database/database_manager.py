@@ -220,14 +220,15 @@ def purge_model(model_name: str):
 
 def get_model_predictions(
     model_filters: dict = None,
-    prompt_filters: dict = None,
+    source_filters: dict = None,
     generator_filters: dict = None,
 ) -> pd.DataFrame:
     base_query = f"""
-    SELECT gn.*
+    SELECT gn.*, st.source, g.*
     FROM {generations_table} gn
     JOIN {models_table} m ON gn.model_id = m.model_id
     JOIN {generators_table} g ON gn.generator_id = g.generator_id
+    JOIN {sources_table} st ON gn.source_id = st.source_id
     WHERE 1=1
     """
 
@@ -235,8 +236,8 @@ def get_model_predictions(
         for key, value in model_filters.items():
             base_query += f" AND m.{key} = '{value}'"
 
-    if prompt_filters:
-        for key, value in prompt_filters.items():
+    if source_filters:
+        for key, value in source_filters.items():
             base_query += f" AND pn.{key} = '{value}'"
 
     if generator_filters:

@@ -64,6 +64,41 @@ def main():
                 generator_filters=generator_filters,
             )
 
+            # Composer and title filtering
+            st.subheader("Filter by Composer and Title")
+            filter_option = st.radio("Filter by:", ["All", "Composer and Title", "Unspecified"])
+
+            if filter_option == "Composer and Title":
+                composers = predictions_df["source"].apply(lambda x: x.get("composer")).dropna().unique()
+                selected_composer = st.selectbox("Select Composer", ["All"] + list(composers))
+                selection = predictions_df["source"].apply(lambda x: x.get("composer") == selected_composer)
+                sources = predictions_df[selection]["source"]
+                if selected_composer != "All":
+                    titles = sources.apply(lambda x: x.get("title")).dropna().unique()
+                else:
+                    titles = predictions_df["source"].apply(lambda x: x.get("title")).dropna().unique()
+
+                selected_title = st.selectbox("Select Title", ["All"] + list(titles))
+
+                if selected_composer != "All" and selected_title != "All":
+                    predictions_df = predictions_df[
+                        predictions_df["source"].apply(
+                            lambda x: x.get("composer") == selected_composer and x.get("title") == selected_title
+                        )
+                    ]
+                elif selected_composer != "All":
+                    predictions_df = predictions_df[
+                        predictions_df["source"].apply(lambda x: x.get("composer") == selected_composer)
+                    ]
+                elif selected_title != "All":
+                    selection = predictions_df["source"].apply(lambda x: x.get("title") == selected_title)
+                    predictions_df = predictions_df[selection]
+
+            elif filter_option == "Unspecified":
+                predictions_df = predictions_df[
+                    predictions_df["source"].apply(lambda x: "composer" not in x and "title" not in x)
+                ]
+
             if not predictions_df.empty:
                 idx = st.number_input(
                     label="prediction number",
@@ -75,10 +110,8 @@ def main():
                 prompt_notes = row["prompt_notes"]
                 prompt_notes_df = pd.DataFrame(prompt_notes)
 
-                if row["source_id"] is not None:
-                    source = database_manager.get_source(source_id=row["source_id"])
-                    st.json(source.iloc[0]["source"])
-
+                st.json(row["source"])
+                st.json({"generator_name": row["generator_name"]} | row["generator_parameters"])
                 generated_notes = row["generated_notes"]
                 generated_notes_df = pd.DataFrame(generated_notes)
 
