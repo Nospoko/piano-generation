@@ -324,6 +324,7 @@ class PerformanceTask(Task):
         notes.start = np.cumsum(np.ones(len(notes)) * dt)
         notes.end = notes.start + dt
         notes.duration = dt
+        return notes
 
     def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
         return self.simplify_notes(notes=notes), notes
