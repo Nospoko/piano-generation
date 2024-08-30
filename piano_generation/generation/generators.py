@@ -1,13 +1,12 @@
 import re
-import time
 from abc import ABC, abstractmethod
 
 import torch
 import pandas as pd
+import streamlit as st
 from torch import nn
 
-from piano_generation.generation.tasks import Task
-from piano_generation.model.tokenizers import AwesomeTokenizer, ExponentialTokenizer
+from piano_generation import Task, AwesomeTokenizer, ExponentialTokenizer
 
 
 class MidiGenerator(ABC):
@@ -495,7 +494,6 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
                 == 0
             ):
                 break
-
         target_notes = tokenizer.untokenize(tokens=output_tokens)
         return prompt_notes, target_notes
 
@@ -577,10 +575,7 @@ class NoteToNoteGenerator(MidiGenerator):
     ):
         notes = tokenizer.untokenize(tokens=tokens)
         notes = notes.iloc[:size]
-        if len(notes) > 0:
-            return tokenizer.tokenize(notes)
-        else:
-            return []
+        return tokenizer.tokenize(notes)
 
     def generate(
         self,
@@ -596,17 +591,19 @@ class NoteToNoteGenerator(MidiGenerator):
         output_tokens = []
         source_token = self.task_generator.source_token
         target_token = self.task_generator.target_token
-        step_input_tokens = self.trim_notes_back(
-            size=self.prompt_context_notes,
-            tokenizer=tokenizer,
-            tokens=input_tokens,
-        )
+
         for _ in range(self.max_new_tokens):
-            t0 = time.time()
+            step_input_tokens = self.trim_notes_back(
+                size=self.prompt_context_notes,
+                tokenizer=tokenizer,
+                tokens=input_tokens,
+            )
+
             source_token = self.task_generator.source_token
             target_token = self.task_generator.target_token
 
             step_input_tokens = [source_token] + step_input_tokens + [target_token] + step_target_tokens
+
             step_token_ids = [tokenizer.token_to_id[token] for token in step_input_tokens]
 
             step_token_ids = torch.tensor(
@@ -626,8 +623,15 @@ class NoteToNoteGenerator(MidiGenerator):
             output_tokens.append(next_token)
             step_target_tokens.append(next_token)
 
+            generated_notes_size = self.calculate_token_notes(
+                tokenizer=tokenizer,
+                tokens=step_target_tokens,
+            )
             # If the generated notes are longer than context_duration, move the generation window time_step to the right
-            if len(step_target_tokens) > self.target_context_notes * 5:
+            if generated_notes_size > self.target_context_notes:
+                st.write("STEP")
+                st.write(tokenizer.untokenize(step_input_tokens))
+                st.write(tokenizer.untokenize(step_target_tokens))
                 input_tokens = NoteToNoteGenerator.trim_notes_front(
                     step=self.step,
                     tokenizer=tokenizer,
@@ -638,21 +642,14 @@ class NoteToNoteGenerator(MidiGenerator):
                     tokenizer=tokenizer,
                     tokens=step_target_tokens,
                 )
-                step_input_tokens = self.trim_notes_back(
-                    size=self.prompt_context_notes,
+            if (
+                NoteToNoteGenerator.calculate_token_notes(
                     tokenizer=tokenizer,
                     tokens=input_tokens,
                 )
-
-                if (
-                    NoteToNoteGenerator.calculate_token_notes(
-                        tokenizer=tokenizer,
-                        tokens=input_tokens,
-                    )
-                    == 0
-                ):
-                    break
-            print(time.time() - t0)
+                == 0
+            ):
+                break
         target_notes = tokenizer.untokenize(tokens=output_tokens)
         return prompt_notes, target_notes
 
