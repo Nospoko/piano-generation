@@ -1,11 +1,13 @@
 import re
+import time
 from abc import ABC, abstractmethod
 
 import torch
 import pandas as pd
 from torch import nn
 
-from piano_generation import Task, AwesomeTokenizer, ExponentialTokenizer
+from piano_generation.generation.tasks import Task
+from piano_generation.model.tokenizers import AwesomeTokenizer, ExponentialTokenizer
 
 
 class MidiGenerator(ABC):
@@ -493,6 +495,164 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
                 == 0
             ):
                 break
+
+        target_notes = tokenizer.untokenize(tokens=output_tokens)
+        return prompt_notes, target_notes
+
+
+class NoteToNoteGenerator(MidiGenerator):
+    """
+    This generation method assures equal number of notes in prompt and target contexts at all times
+    during generation. It is ideal for tasks such as velocity denoising or performance task -
+    where there should be one note generated per one note in the prompt.
+    """
+
+    def __init__(
+        self,
+        task: str,
+        prompt_context_notes: int,
+        target_context_notes: int,
+        step: int,
+        temperature: float = 1.0,
+        max_new_tokens: int = 512,
+    ):
+        super().__init__(task=task)
+        self.prompt_context_notes = prompt_context_notes
+        self.target_context_notes = target_context_notes
+        self.step = step
+        self.temperature = temperature
+        self.max_new_tokens = max_new_tokens
+        self.task_generator = Task.get_task(task_name=task)
+
+    @staticmethod
+    def default_parameters() -> dict:
+        return {
+            "prompt_context_notes": 128,
+            "target_context_notes": 64,
+            "step": 16,
+            "max_new_tokens": 1024,
+            "temperature": 1.0,
+        }
+
+    @property
+    def parameters(self) -> dict:
+        return {
+            "prompt_context_length": self.prompt_context_notes,
+            "target_context_length": self.target_context_notes,
+            "time_step": self.time_step,
+            "max_new_tokens": self.max_new_tokens,
+            "temperature": self.temperature,
+        }
+
+    @staticmethod
+    def calculate_token_notes(
+        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        tokens: list[str],
+    ):
+        try:
+            notes = tokenizer.untokenize(tokens=tokens)
+        except KeyError:
+            # KeyError in tokenizer.untokenizes is raised when there are no full notes in tokens.
+            return 0
+        return len(notes)
+
+    @staticmethod
+    def trim_notes_front(
+        step: int,
+        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        tokens: list[str],
+    ):
+        notes = tokenizer.untokenize(tokens=tokens)
+        notes = notes.iloc[step:]
+        offset = notes.start.min()
+        notes.start -= offset
+        notes.end -= offset
+        return tokenizer.tokenize(notes)
+
+    @staticmethod
+    def trim_notes_back(
+        size: float,
+        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        tokens: list[str],
+    ):
+        notes = tokenizer.untokenize(tokens=tokens)
+        notes = notes.iloc[:size]
+        if len(notes) > 0:
+            return tokenizer.tokenize(notes)
+        else:
+            return []
+
+    def generate(
+        self,
+        prompt_notes: pd.DataFrame,
+        model: nn.Module,
+        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        device: torch.device,
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        input_tokens = tokenizer.tokenize(prompt_notes)
+        prompt_notes = tokenizer.untokenize(input_tokens)
+
+        step_target_tokens = []
+        output_tokens = []
+        source_token = self.task_generator.source_token
+        target_token = self.task_generator.target_token
+        step_input_tokens = self.trim_notes_back(
+            size=self.prompt_context_notes,
+            tokenizer=tokenizer,
+            tokens=input_tokens,
+        )
+        for _ in range(self.max_new_tokens):
+            t0 = time.time()
+            source_token = self.task_generator.source_token
+            target_token = self.task_generator.target_token
+
+            step_input_tokens = [source_token] + step_input_tokens + [target_token] + step_target_tokens
+            step_token_ids = [tokenizer.token_to_id[token] for token in step_input_tokens]
+
+            step_token_ids = torch.tensor(
+                [step_token_ids],
+                device=device,
+                dtype=torch.int64,
+            )
+            next_token = model.generate_new_tokens(
+                idx=step_token_ids,
+                temperature=self.temperature,
+                max_new_tokens=1,
+            )
+
+            next_token_id = next_token[0].cpu().numpy()[0]
+            next_token = tokenizer.vocab[next_token_id]
+
+            output_tokens.append(next_token)
+            step_target_tokens.append(next_token)
+
+            # If the generated notes are longer than context_duration, move the generation window time_step to the right
+            if len(step_target_tokens) > self.target_context_notes * 5:
+                input_tokens = NoteToNoteGenerator.trim_notes_front(
+                    step=self.step,
+                    tokenizer=tokenizer,
+                    tokens=input_tokens,
+                )
+                step_target_tokens = NoteToNoteGenerator.trim_notes_front(
+                    step=self.step,
+                    tokenizer=tokenizer,
+                    tokens=step_target_tokens,
+                )
+                step_input_tokens = self.trim_notes_back(
+                    size=self.prompt_context_notes,
+                    tokenizer=tokenizer,
+                    tokens=input_tokens,
+                )
+
+                if (
+                    NoteToNoteGenerator.calculate_token_notes(
+                        tokenizer=tokenizer,
+                        tokens=input_tokens,
+                    )
+                    == 0
+                ):
+                    break
+            print(time.time() - t0)
         target_notes = tokenizer.untokenize(tokens=output_tokens)
         return prompt_notes, target_notes
 
@@ -502,4 +662,5 @@ generator_types = {
     "NextTokenTokenwiseGenerator": NextTokenTokenwiseGenerator,
     "SeqToSeqIterativeGenerator": SeqToSeqIterativeGenerator,
     "SeqToSeqTokenwiseGenerator": SeqToSeqTokenwiseGenerator,
+    "NoteToNoteGenerator": NoteToNoteGenerator,
 }
