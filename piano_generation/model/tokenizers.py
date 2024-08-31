@@ -51,7 +51,7 @@ class ExponentialTokenizer(ExponentialTimeTokenizer):
 
         return tokens
 
-    def untokenize(self, tokens: list[str], complete_notes: bool = True) -> pd.DataFrame:
+    def untokenize(self, tokens: list[str], complete_notes: bool = False) -> pd.DataFrame:
         events = []
         current_time = 0
         current_velocity = 0
