@@ -548,7 +548,10 @@ class NoteToNoteGenerator(MidiGenerator):
         tokens: list[str],
     ):
         try:
-            notes = tokenizer.untokenize(tokens=tokens)
+            notes = tokenizer.untokenize(
+                tokens=tokens,
+                complete_notes=False,
+            )
         except KeyError:
             # KeyError in tokenizer.untokenizes is raised when there are no full notes in tokens.
             return 0
@@ -560,9 +563,12 @@ class NoteToNoteGenerator(MidiGenerator):
         tokenizer: ExponentialTokenizer | AwesomeTokenizer,
         tokens: list[str],
     ):
-        notes = tokenizer.untokenize(tokens=tokens)
+        notes = tokenizer.untokenize(
+            tokens=tokens,
+            complete_notes=False,
+        )
+        offset = notes.iloc[step:].start.min()
         notes = notes.iloc[step:]
-        offset = notes.start.min()
         notes.start -= offset
         notes.end -= offset
         return tokenizer.tokenize(notes)
@@ -573,7 +579,10 @@ class NoteToNoteGenerator(MidiGenerator):
         tokenizer: ExponentialTokenizer | AwesomeTokenizer,
         tokens: list[str],
     ):
-        notes = tokenizer.untokenize(tokens=tokens)
+        notes = tokenizer.untokenize(
+            tokens=tokens,
+            complete_notes=False,
+        )
         notes = notes.iloc[:size]
         return tokenizer.tokenize(notes)
 
@@ -630,8 +639,18 @@ class NoteToNoteGenerator(MidiGenerator):
             # If the generated notes are longer than context_duration, move the generation window time_step to the right
             if generated_notes_size > self.target_context_notes:
                 st.write("STEP")
-                st.write(tokenizer.untokenize(step_input_tokens))
-                st.write(tokenizer.untokenize(step_target_tokens))
+                st.write(
+                    tokenizer.untokenize(
+                        step_input_tokens,
+                        complete_notes=False,
+                    )
+                )
+                st.write(
+                    tokenizer.untokenize(
+                        step_target_tokens,
+                        complete_notes=False,
+                    )
+                )
                 input_tokens = NoteToNoteGenerator.trim_notes_front(
                     step=self.step,
                     tokenizer=tokenizer,
@@ -650,7 +669,10 @@ class NoteToNoteGenerator(MidiGenerator):
                 == 0
             ):
                 break
-        target_notes = tokenizer.untokenize(tokens=output_tokens)
+        target_notes = tokenizer.untokenize(
+            tokens=output_tokens,
+            complete_notes=False,
+        )
         return prompt_notes, target_notes
 
 
