@@ -2,8 +2,8 @@ import re
 from abc import ABC, abstractmethod
 
 import torch
+import numpy as np
 import pandas as pd
-import streamlit as st
 from torch import nn
 
 from piano_generation import Task, AwesomeTokenizer, ExponentialTokenizer
@@ -543,7 +543,7 @@ class NoteToNoteGenerator(MidiGenerator):
         }
 
     @staticmethod
-    def calculate_token_notes(
+    def calculate_notes_in_tokens(
         tokenizer: ExponentialTokenizer | AwesomeTokenizer,
         tokens: list[str],
     ):
@@ -563,15 +563,16 @@ class NoteToNoteGenerator(MidiGenerator):
         tokenizer: ExponentialTokenizer | AwesomeTokenizer,
         tokens: list[str],
     ):
-        notes = tokenizer.untokenize(
-            tokens=tokens,
-            complete_notes=False,
-        )
-        offset = notes.iloc[step:].start.min()
-        notes = notes.iloc[step:]
-        notes.start -= offset
-        notes.end -= offset
-        return tokenizer.tokenize(notes)
+        n_notes = 0
+        it = 0
+        for token in tokens:
+            if token.startswith("NOTE_OFF"):
+                n_notes += 1
+            if n_notes >= step and not token.endswith("T"):
+                break
+            it += 1
+
+        return tokens[it:]
 
     @staticmethod
     def trim_notes_back(
@@ -579,12 +580,16 @@ class NoteToNoteGenerator(MidiGenerator):
         tokenizer: ExponentialTokenizer | AwesomeTokenizer,
         tokens: list[str],
     ):
-        notes = tokenizer.untokenize(
-            tokens=tokens,
-            complete_notes=False,
-        )
-        notes = notes.iloc[:size]
-        return tokenizer.tokenize(notes)
+        n_notes = 0
+        trimmed_tokens = np.array([], dtype=str)
+        for token in tokens:
+            if token.startswith("NOTE_OFF"):
+                n_notes += 1
+            if n_notes >= size:
+                break
+            trimmed_tokens = np.append(arr=trimmed_tokens, values=[token])
+
+        return trimmed_tokens.tolist()
 
     def generate(
         self,
@@ -607,7 +612,6 @@ class NoteToNoteGenerator(MidiGenerator):
                 tokenizer=tokenizer,
                 tokens=input_tokens,
             )
-
             source_token = self.task_generator.source_token
             target_token = self.task_generator.target_token
 
@@ -625,32 +629,17 @@ class NoteToNoteGenerator(MidiGenerator):
                 temperature=self.temperature,
                 max_new_tokens=1,
             )
-
             next_token_id = next_token[0].cpu().numpy()[0]
             next_token = tokenizer.vocab[next_token_id]
 
             output_tokens.append(next_token)
             step_target_tokens.append(next_token)
-
-            generated_notes_size = self.calculate_token_notes(
+            generated_notes_size = self.calculate_notes_in_tokens(
                 tokenizer=tokenizer,
                 tokens=step_target_tokens,
             )
-            # If the generated notes are longer than context_duration, move the generation window time_step to the right
+            # If the generated notes are longer than context_duration, move the generation window to the right
             if generated_notes_size > self.target_context_notes:
-                st.write("STEP")
-                st.write(
-                    tokenizer.untokenize(
-                        step_input_tokens,
-                        complete_notes=False,
-                    )
-                )
-                st.write(
-                    tokenizer.untokenize(
-                        step_target_tokens,
-                        complete_notes=False,
-                    )
-                )
                 input_tokens = NoteToNoteGenerator.trim_notes_front(
                     step=self.step,
                     tokenizer=tokenizer,
@@ -661,14 +650,15 @@ class NoteToNoteGenerator(MidiGenerator):
                     tokenizer=tokenizer,
                     tokens=step_target_tokens,
                 )
-            if (
-                NoteToNoteGenerator.calculate_token_notes(
-                    tokenizer=tokenizer,
-                    tokens=input_tokens,
-                )
-                == 0
-            ):
-                break
+                if (
+                    NoteToNoteGenerator.calculate_notes_in_tokens(
+                        tokenizer=tokenizer,
+                        tokens=input_tokens,
+                    )
+                    == 0
+                ):
+                    break
+
         target_notes = tokenizer.untokenize(
             tokens=output_tokens,
             complete_notes=False,
