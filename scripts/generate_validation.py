@@ -52,38 +52,13 @@ def run_validation_for_task(
     checkpoint: dict,
     run_name: str,
     validation_examples: pd.DataFrame,
+    generators_to_use: list[generators.MidiGenerator],
     task_name: str,
     tokenizer: Union[AwesomeTokenizer, ExponentialTokenizer],
     device: torch.device,
     ctx: nullcontext,
 ):
     task = Task.get_task(task_name=task_name)
-    generators_to_use = [
-        generators.SeqToSeqTokenwiseGenerator(
-            task=task_name,
-            prompt_context_length=1024,
-            target_context_length=512,
-            time_step=2,
-            temperature=1.0,
-            max_new_tokens=4096,
-        ),
-        generators.SeqToSeqTokenwiseGenerator(
-            task=task_name,
-            prompt_context_length=1024,
-            target_context_length=512,
-            time_step=2,
-            temperature=0.8,
-            max_new_tokens=4096,
-        ),
-        generators.SeqToSeqTokenwiseGenerator(
-            task=task_name,
-            prompt_context_length=1024,
-            target_context_length=512,
-            time_step=2,
-            temperature=1.2,
-            max_new_tokens=4096,
-        ),
-    ]
 
     print(f"Running validation for task: {task_name}")
     for generator in generators_to_use:
@@ -100,7 +75,7 @@ def run_validation_for_task(
             )
 
 
-def main(model_path: str, device: str, tasks: List[str]):
+def main(model_path: str, device: str, tasks: List[str], generator_type: str):
     checkpoint = torch.load(f=model_path, map_location=device)
 
     cfg = load_cfg(checkpoint=checkpoint)
@@ -121,8 +96,63 @@ def main(model_path: str, device: str, tasks: List[str]):
     run_name = os.path.splitext(os.path.basename(model_path))[0]
 
     for task_name in tasks:
+        if generator_type == "SeqToSeqTokenwiseGenerator":
+            generators_to_use = [
+                generators.SeqToSeqTokenwiseGenerator(
+                    task=task_name,
+                    prompt_context_length=1024,
+                    target_context_length=512,
+                    time_step=2,
+                    temperature=1.0,
+                    max_new_tokens=4096,
+                ),
+                generators.SeqToSeqTokenwiseGenerator(
+                    task=task_name,
+                    prompt_context_length=1024,
+                    target_context_length=512,
+                    time_step=2,
+                    temperature=0.8,
+                    max_new_tokens=4096,
+                ),
+                generators.SeqToSeqTokenwiseGenerator(
+                    task=task_name,
+                    prompt_context_length=1024,
+                    target_context_length=512,
+                    time_step=2,
+                    temperature=1.2,
+                    max_new_tokens=4096,
+                ),
+            ]
+        elif generator_type == "NoteToNoteGenerator":
+            generators_to_use = [
+                generators.NoteToNoteGenerator(
+                    task=task_name,
+                    prompt_context_notes=128,
+                    target_context_notes=96,
+                    step=16,
+                    temperature=1.0,
+                    max_new_tokens=4096,
+                ),
+                generators.NoteToNoteGenerator(
+                    task=task_name,
+                    prompt_context_notes=128,
+                    target_context_notes=64,
+                    step=16,
+                    temperature=1.0,
+                    max_new_tokens=4096,
+                ),
+                generators.NoteToNoteGenerator(
+                    task=task_name,
+                    prompt_context_notes=128,
+                    target_context_notes=96,
+                    step=16,
+                    temperature=0.8,
+                    max_new_tokens=4096,
+                ),
+            ]
         run_validation_for_task(
             model=model,
+            generators_to_use=generators_to_use,
             checkpoint=checkpoint,
             run_name=run_name,
             validation_examples=validation_examples,
@@ -138,6 +168,12 @@ if __name__ == "__main__":
     parser.add_argument("model_path", type=str, help="Path to the model checkpoint.")
     parser.add_argument("device", type=str, help="Device to perform calculations on.")
     parser.add_argument(
+        "generator",
+        type=str,
+        help="Generator type to use: SeqToSeqTokenwiseGenerator or NoteToNoteGenerator.",
+        default="SeqToSeqTokenwiseGenerator",
+    )
+    parser.add_argument(
         "--tasks",
         nargs="+",
         default=list(task_map.keys()),
@@ -145,4 +181,9 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    main(model_path=args.model_path, device=args.device, tasks=args.tasks)
+    main(
+        model_path=args.model_path,
+        device=args.device,
+        tasks=args.tasks,
+        generator_type=args.generator,
+    )
