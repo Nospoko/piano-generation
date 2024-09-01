@@ -535,9 +535,9 @@ class NoteToNoteGenerator(MidiGenerator):
     @property
     def parameters(self) -> dict:
         return {
-            "prompt_context_length": self.prompt_context_notes,
-            "target_context_length": self.target_context_notes,
-            "time_step": self.time_step,
+            "prompt_context_notes": self.prompt_context_notes,
+            "target_context_notes": self.target_context_notes,
+            "step": self.step,
             "max_new_tokens": self.max_new_tokens,
             "temperature": self.temperature,
         }
