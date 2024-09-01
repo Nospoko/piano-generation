@@ -231,6 +231,7 @@ class StartTimeDenoising(Task):
             notes,
             max_time_change=0.3,
         )
+        noisy_notes.sort_values(by="start").reset_index(drop=True)
         return noisy_notes, notes
 
     @staticmethod
@@ -252,6 +253,7 @@ class TimeDenoising(Task):
             notes,
             max_time_change=0.3,
         )
+        noisy_notes.sort_values(by="start").reset_index(drop=True)
         return noisy_notes, notes
 
     @staticmethod
@@ -280,6 +282,7 @@ class ComprehensiveDenoising(Task):
             max_time_change=0.3,
             max_velocity_change=30,
         )
+        noisy_notes.sort_values(by="start").reset_index(drop=True)
         return noisy_notes, notes
 
     @staticmethod
@@ -321,7 +324,7 @@ class PerformanceTask(Task):
     def simplify_notes(self, notes: pd.DataFrame):
         notes = notes.copy()
         dt = 0.2
-        notes.start = np.cumsum(np.ones(len(notes)) * dt)
+        notes.start = np.cumsum(np.ones(len(notes)) * dt) - dt
         notes.end = notes.start + dt
         notes.duration = dt
         notes.velocity = 80

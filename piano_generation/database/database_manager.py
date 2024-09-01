@@ -260,6 +260,18 @@ def get_all_models() -> pd.DataFrame:
     return df
 
 
+def get_model_generator_names(model_id: int) -> list:
+    query = f"""
+    SELECT DISTINCT g.generator_name
+    FROM {generations_table} gn
+    JOIN {generators_table} g ON gn.generator_id = g.generator_id
+    WHERE gn.model_id = {model_id}
+    ORDER BY g.generator_name
+    """
+    df = database_cnx.read_sql(sql=query)
+    return df["generator_name"].tolist()
+
+
 def select_models_with_generations() -> pd.DataFrame:
     query = """
     SELECT

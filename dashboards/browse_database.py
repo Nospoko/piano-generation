@@ -52,11 +52,23 @@ def main():
             # Get unique tasks for this model's predictions
             tasks = database_manager.get_model_tasks(model_id=selected_model_id)
             selected_task = st.selectbox("Select Task", tasks + ["All"], key="task_selector")
-            # Filter predictions based on selected task
+
+            # Get unique generator names for this model's predictions
+            generator_names = database_manager.get_model_generator_names(model_id=selected_model_id)
+            selected_generator = st.selectbox("Select Generator", ["All"] + generator_names, key="generator_selector")
+
+            # Filter predictions based on selected task and generator
+            generator_filters = {}
             if selected_task != "All":
-                generator_filters = {"task": selected_task}
-            else:
-                generator_filters = None
+                generator_filters["task"] = selected_task
+            if selected_generator != "All":
+                generator_filters["generator_name"] = selected_generator
+
+            # Fetch predictions for the selected model, task, and generator
+            predictions_df = database_manager.get_model_predictions(
+                model_filters={"model_id": selected_model_id},
+                generator_filters=generator_filters if generator_filters else None,
+            )
 
             # Fetch predictions for the selected model and task
             predictions_df = database_manager.get_model_predictions(
@@ -106,7 +118,6 @@ def main():
                     max_value=len(predictions_df),
                 )
                 row = predictions_df.iloc[idx]
-                # generator = database_manager.get_generator(row["generator_id"]).iloc[0].to_dict()
                 prompt_notes = row["prompt_notes"]
                 prompt_notes_df = pd.DataFrame(prompt_notes)
 
