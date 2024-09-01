@@ -20,6 +20,7 @@ class MidiGenerator(ABC):
         model: nn.Module,
         tokenizer: ExponentialTokenizer | AwesomeTokenizer,
         device: torch.device,
+        additional_tokens: list[str] = None,
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
         pass
 
@@ -57,11 +58,14 @@ class NextTokenGenerator(MidiGenerator):
         model: nn.Module,
         tokenizer: ExponentialTokenizer | AwesomeTokenizer,
         device: torch.device,
+        additional_tokens: list[str] = None,
     ):
         prompt_notes = prompt_notes[prompt_notes.end < self.prompt_context_duration]
 
         # Tokenize prompt notes
         input_sequence = tokenizer.tokenize(prompt_notes)
+        if additional_tokens is not None:
+            input_sequence = additional_tokens + input_sequence
 
         # Convert tokens to ids and prepare input tensor
         input_token_ids = torch.tensor(
@@ -203,12 +207,16 @@ class SeqToSeqIterativeGenerator(MidiGenerator):
         model: nn.Module,
         tokenizer: ExponentialTokenizer | AwesomeTokenizer,
         device: torch.device,
+        additional_tokens: list[str] = None,
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
         input_tokens = tokenizer.tokenize(prompt_notes)
         step_target_tokens = []
         output_tokens = []
-        source_token = self.task_generator.source_token
-        target_token = self.task_generator.target_token
+        source_tokens = [self.task_generator.source_token]
+        target_tokens = [self.task_generator.target_token]
+
+        if additional_tokens is not None:
+            target_tokens += additional_tokens
 
         for _ in range(self.max_new_tokens):
             step_input_tokens = SeqToSeqTokenwiseGenerator.trim_tokens_back(
@@ -216,9 +224,8 @@ class SeqToSeqIterativeGenerator(MidiGenerator):
                 tokenizer=tokenizer,
                 tokens=input_tokens,
             )
-            source_token = self.task_generator.source_token
-            target_token = self.task_generator.target_token
-            step_input_tokens = [source_token] + step_input_tokens + [target_token] + step_target_tokens
+
+            step_input_tokens = source_tokens + step_input_tokens + target_tokens + step_target_tokens
 
             step_token_ids = [tokenizer.token_to_id[token] for token in step_input_tokens]
 
@@ -287,11 +294,14 @@ class NextTokenTokenwiseGenerator(MidiGenerator):
         model: nn.Module,
         tokenizer: ExponentialTokenizer | AwesomeTokenizer,
         device: torch.device,
+        additional_tokens: list[str] = None,
     ):
         prompt_notes = prompt_notes[-self.prompt_context_length :]
 
         # Tokenize prompt notes
         input_sequence = tokenizer.tokenize(prompt_notes)
+        if additional_tokens is not None:
+            input_sequence = additional_tokens + input_sequence
 
         # Convert tokens to ids and prepare input tensor
         input_token_ids = torch.tensor(
@@ -436,22 +446,23 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
         model: nn.Module,
         tokenizer: ExponentialTokenizer | AwesomeTokenizer,
         device: torch.device,
+        additional_tokens: list[str] = None,
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
         input_tokens = tokenizer.tokenize(prompt_notes)
         prompt_notes = tokenizer.untokenize(input_tokens)
 
         step_target_tokens = []
         output_tokens = []
-        source_token = self.task_generator.source_token
-        target_token = self.task_generator.target_token
+        source_tokens = [self.task_generator.source_token]
+        target_tokens = [self.task_generator.target_token]
+
+        if additional_tokens is not None:
+            target_tokens += additional_tokens
 
         for _ in range(self.max_new_tokens):
             step_input_tokens = input_tokens[: self.prompt_context_length]
 
-            source_token = self.task_generator.source_token
-            target_token = self.task_generator.target_token
-
-            step_input_tokens = [source_token] + step_input_tokens + [target_token] + step_target_tokens
+            step_input_tokens = source_tokens + step_input_tokens + target_tokens + step_target_tokens
 
             step_token_ids = [tokenizer.token_to_id[token] for token in step_input_tokens]
 

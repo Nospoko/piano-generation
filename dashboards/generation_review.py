@@ -12,10 +12,10 @@ import streamlit_pianoroll
 from omegaconf import OmegaConf
 
 from dashboards.components import download_button
-from piano_generation.artifacts import special_tokens
 from piano_generation.generation.tasks import task_map
 import piano_generation.generation.generators as generators
 import piano_generation.database.database_manager as database_manager
+from piano_generation.artifacts import special_tokens, composer_tokens
 from piano_generation import Task, RepeatingModel, ExponentialTokenizer
 from dashboards.utils import dataset_configuration, select_model_and_device
 from piano_generation.utils import load_cfg, load_tokenizer, load_checkpoint, initialize_gpt_model
@@ -156,6 +156,7 @@ def main():
             max_value=len(source_notes) - 1,
             value=len(source_notes) - 1,
         )
+
         # Extract prompt by Task.generate
         source_notes = slice_source_notes(
             notes=source_notes,
@@ -172,7 +173,9 @@ def main():
         }
         prompt_piece = ff.MidiPiece(prompt_notes)
         streamlit_pianoroll.from_fortepyan(piece=prompt_piece)
-
+    additional_token = st.selectbox("additional token", options=["None"] + composer_tokens)
+    if additional_token == "None":
+        additional_token = None
     if st.button("Generate"):
         if checkpoint_path == "DummyModel":
             model = RepeatingModel()
@@ -215,6 +218,7 @@ def main():
                     model=model,
                     tokenizer=tokenizer,
                     device=device,
+                    additional_tokens=[additional_token],
                 )
         st.dataframe(generated_notes)
         prompt_piece = ff.MidiPiece(df=prompt_notes.copy())
