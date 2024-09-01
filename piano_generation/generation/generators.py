@@ -611,7 +611,6 @@ class NoteToNoteGenerator(MidiGenerator):
         for _ in range(self.max_new_tokens):
             step_input_tokens = self.trim_notes_back(
                 size=self.prompt_context_notes,
-                tokenizer=tokenizer,
                 tokens=input_tokens,
             )
 

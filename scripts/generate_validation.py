@@ -29,7 +29,7 @@ def run_generation_step(
         source = example["source"]
         if checkpoint["config"]["task"] == "multi_with_composer":
             composer = source.get("composer", "")
-            additional_tokens = [tokenizer.token_to_id(get_composer_token(composer=composer))]
+            additional_tokens = [tokenizer.token_to_id[get_composer_token(composer=composer)]]
         else:
             additional_tokens = None
         prompt_notes, _ = task.generate(notes=source_notes)
