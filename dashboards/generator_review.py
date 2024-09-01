@@ -3,8 +3,8 @@ import fortepyan as ff
 import streamlit as st
 import streamlit_pianoroll
 
+from piano_generation.artifacts import special_tokens
 from piano_generation.generation.tasks import task_map
-from piano_generation.model.tokenizers import special_tokens
 from piano_generation import (
     DummyModel,
     NextTokenGenerator,

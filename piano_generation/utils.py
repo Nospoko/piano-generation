@@ -2,7 +2,8 @@ import torch
 from omegaconf import OmegaConf, DictConfig
 
 from piano_generation import GPT, GPTConfig
-from piano_generation.model.tokenizers import AwesomeTokenizer, ExponentialTokenizer, special_tokens
+from piano_generation.artifacts import special_tokens
+from piano_generation.model.tokenizers import AwesomeTokenizer, ExponentialTokenizer
 
 
 def load_cfg(checkpoint: dict) -> DictConfig:

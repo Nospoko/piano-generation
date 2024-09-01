@@ -12,9 +12,9 @@ import streamlit_pianoroll
 from omegaconf import OmegaConf
 
 from dashboards.components import download_button
+from piano_generation.artifacts import special_tokens
 from piano_generation.generation.tasks import task_map
 import piano_generation.generation.generators as generators
-from piano_generation.model.tokenizers import special_tokens
 import piano_generation.database.database_manager as database_manager
 from piano_generation import Task, RepeatingModel, ExponentialTokenizer
 from dashboards.utils import dataset_configuration, select_model_and_device

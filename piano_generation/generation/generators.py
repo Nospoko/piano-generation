@@ -560,7 +560,6 @@ class NoteToNoteGenerator(MidiGenerator):
     @staticmethod
     def trim_notes_front(
         step: int,
-        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
         tokens: list[str],
     ):
         n_notes = 0
@@ -577,7 +576,6 @@ class NoteToNoteGenerator(MidiGenerator):
     @staticmethod
     def trim_notes_back(
         size: float,
-        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
         tokens: list[str],
     ):
         n_notes = 0
@@ -597,14 +595,18 @@ class NoteToNoteGenerator(MidiGenerator):
         model: nn.Module,
         tokenizer: ExponentialTokenizer | AwesomeTokenizer,
         device: torch.device,
+        additional_tokens: list[str] = None,
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
         input_tokens = tokenizer.tokenize(prompt_notes)
         prompt_notes = tokenizer.untokenize(input_tokens)
 
         step_target_tokens = []
         output_tokens = []
-        source_token = self.task_generator.source_token
-        target_token = self.task_generator.target_token
+        source_tokens = [self.task_generator.source_token]
+        target_tokens = [self.task_generator.target_token]
+
+        if additional_tokens is not None:
+            target_tokens += additional_tokens
 
         for _ in range(self.max_new_tokens):
             step_input_tokens = self.trim_notes_back(
@@ -612,11 +614,8 @@ class NoteToNoteGenerator(MidiGenerator):
                 tokenizer=tokenizer,
                 tokens=input_tokens,
             )
-            source_token = self.task_generator.source_token
-            target_token = self.task_generator.target_token
 
-            step_input_tokens = [source_token] + step_input_tokens + [target_token] + step_target_tokens
-
+            step_input_tokens = source_tokens + step_input_tokens + target_tokens + step_target_tokens
             step_token_ids = [tokenizer.token_to_id[token] for token in step_input_tokens]
 
             step_token_ids = torch.tensor(
@@ -642,12 +641,10 @@ class NoteToNoteGenerator(MidiGenerator):
             if generated_notes_size > self.target_context_notes:
                 input_tokens = NoteToNoteGenerator.trim_notes_front(
                     step=self.step,
-                    tokenizer=tokenizer,
                     tokens=input_tokens,
                 )
                 step_target_tokens = NoteToNoteGenerator.trim_notes_front(
                     step=self.step,
-                    tokenizer=tokenizer,
                     tokens=step_target_tokens,
                 )
                 if (

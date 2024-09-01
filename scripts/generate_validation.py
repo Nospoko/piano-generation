@@ -7,6 +7,7 @@ import torch
 import pandas as pd
 
 from piano_generation.generation.tasks import task_map
+from piano_generation.artifacts import get_composer_token
 import piano_generation.generation.generators as generators
 import piano_generation.database.database_manager as database_manager
 from piano_generation import GPT, Task, AwesomeTokenizer, ExponentialTokenizer
@@ -26,7 +27,11 @@ def run_generation_step(
     for idx, example in validation_examples.iterrows():
         source_notes = pd.DataFrame(example["notes"])
         source = example["source"]
-
+        if checkpoint["config"]["task"] == "multi_with_composer":
+            composer = source.get("composer", "")
+            additional_tokens = [tokenizer.token_to_id(get_composer_token(composer=composer))]
+        else:
+            additional_tokens = None
         prompt_notes, _ = task.generate(notes=source_notes)
 
         prompt_notes, generation = generator.generate(
@@ -34,6 +39,7 @@ def run_generation_step(
             model=model,
             tokenizer=tokenizer,
             device=device,
+            additional_tokens=additional_tokens,
         )
 
         database_manager.insert_generation(
