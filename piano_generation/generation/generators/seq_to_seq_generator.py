@@ -122,7 +122,7 @@ class SeqToSeqIterativeGenerator(MidiGenerator):
             target_tokens += additional_tokens
 
         for _ in range(self.max_new_tokens):
-            step_input_tokens = SeqToSeqIterativeGenerator.trim_tokens_back(
+            step_input_tokens = SeqToSeqTokenwiseGenerator.trim_tokens_back(
                 duration=self.prompt_context_duration,
                 tokenizer=tokenizer,
                 tokens=input_tokens,
@@ -155,19 +155,19 @@ class SeqToSeqIterativeGenerator(MidiGenerator):
             )
             # If the generated notes are longer than context_duration, move the generation window time_step to the right
             if generated_notes_duration > self.target_context_duration:
-                input_tokens = SeqToSeqIterativeGenerator.trim_tokens_front(
+                input_tokens = SeqToSeqTokenwiseGenerator.trim_tokens_front(
                     time_step=self.time_step,
                     tokenizer=tokenizer,
                     tokens=input_tokens,
                 )
-                step_target_tokens = SeqToSeqIterativeGenerator.trim_tokens_front(
+                step_target_tokens = SeqToSeqTokenwiseGenerator.trim_tokens_front(
                     time_step=self.time_step,
                     tokenizer=tokenizer,
                     tokens=step_target_tokens,
                 )
 
             if (
-                SeqToSeqIterativeGenerator.calculate_token_duration(
+                SeqToSeqTokenwiseGenerator.calculate_token_duration(
                     tokenizer=tokenizer,
                     tokens=input_tokens,
                 )

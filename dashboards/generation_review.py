@@ -186,6 +186,7 @@ def main():
                 n_velocity_bins=32,
                 special_tokens=special_tokens,
             )
+            model.token_id = 25 if additional_tokens is None else tokenizer.token_to_id[additional_token]
             model_name = "dummy"
         else:
             with st.spinner("Loading checkpoint..."):
