@@ -3,7 +3,8 @@ import pandas as pd
 from torch import nn
 
 from piano_generation import AwesomeTokenizer, ExponentialTokenizer
-from piano_generation.generation.generators.base_generator import MidiGenerator
+
+from .base_generator import MidiGenerator
 
 
 class NextTokenGenerator(MidiGenerator):

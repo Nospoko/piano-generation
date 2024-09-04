@@ -5,7 +5,6 @@ import pandas as pd
 from torch import nn
 
 from piano_generation import AwesomeTokenizer, ExponentialTokenizer
-from piano_generation.generation.generators.generator_types import generator_types
 
 
 class MidiGenerator(ABC):
@@ -24,8 +23,10 @@ class MidiGenerator(ABC):
         pass
 
     @staticmethod
-    def get_generator(generator_name: str, parameters) -> "MidiGenerator":
-        return generator_types.get(generator_name)(**parameters)
+    def get_generator(generator_name: str, parameters: dict) -> "MidiGenerator":
+        from .generator_types import generator_types
+
+        return generator_types[generator_name](**parameters)
 
     @staticmethod
     def default_parameters() -> dict:

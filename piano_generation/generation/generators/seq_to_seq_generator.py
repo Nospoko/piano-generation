@@ -205,8 +205,8 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
         return {
             "prompt_context_length": 1024,
             "target_context_length": 512,
-            "time_step": 5.0,
-            "max_new_tokens": 1024,
+            "time_step": 2.0,
+            "max_new_tokens": 4096,
             "temperature": 1.0,
         }
 

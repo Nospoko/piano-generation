@@ -37,7 +37,7 @@ class NoteToNoteGenerator(MidiGenerator):
             "prompt_context_notes": 128,
             "target_context_notes": 64,
             "step": 16,
-            "max_new_tokens": 1024,
+            "max_new_tokens": 4096,
             "temperature": 1.0,
         }
 
