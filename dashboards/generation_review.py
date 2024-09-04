@@ -175,7 +175,9 @@ def main():
         streamlit_pianoroll.from_fortepyan(piece=prompt_piece)
     additional_token = st.selectbox("additional token", options=["None"] + composer_tokens)
     if additional_token == "None":
-        additional_token = None
+        additional_tokens = None
+    else:
+        additional_tokens = [additional_token]
     if st.button("Generate"):
         if checkpoint_path == "DummyModel":
             model = RepeatingModel()
@@ -218,7 +220,7 @@ def main():
                     model=model,
                     tokenizer=tokenizer,
                     device=device,
-                    additional_tokens=[additional_token],
+                    additional_tokens=additional_token,
                 )
         st.dataframe(generated_notes)
         prompt_piece = ff.MidiPiece(df=prompt_notes.copy())
