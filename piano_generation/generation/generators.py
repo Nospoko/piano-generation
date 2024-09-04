@@ -60,6 +60,10 @@ class NextTokenGenerator(MidiGenerator):
         device: torch.device,
         additional_tokens: list[str] = None,
     ):
+        start_offset = prompt_notes.start.min()
+        prompt_notes.start -= start_offset
+        prompt_notes.end -= start_offset
+
         prompt_notes = prompt_notes[prompt_notes.end < self.prompt_context_duration]
 
         # Tokenize prompt notes
@@ -209,6 +213,10 @@ class SeqToSeqIterativeGenerator(MidiGenerator):
         device: torch.device,
         additional_tokens: list[str] = None,
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        start_offset = prompt_notes.start.min()
+        prompt_notes.start -= start_offset
+        prompt_notes.end -= start_offset
+
         input_tokens = tokenizer.tokenize(prompt_notes)
         step_target_tokens = []
         output_tokens = []
@@ -296,6 +304,10 @@ class NextTokenTokenwiseGenerator(MidiGenerator):
         device: torch.device,
         additional_tokens: list[str] = None,
     ):
+        start_offset = prompt_notes.start.min()
+        prompt_notes.start -= start_offset
+        prompt_notes.end -= start_offset
+
         prompt_notes = prompt_notes[-self.prompt_context_length :]
 
         # Tokenize prompt notes
@@ -448,6 +460,10 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
         device: torch.device,
         additional_tokens: list[str] = None,
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        start_offset = prompt_notes.start.min()
+        prompt_notes.start -= start_offset
+        prompt_notes.end -= start_offset
+
         input_tokens = tokenizer.tokenize(prompt_notes)
         prompt_notes = tokenizer.untokenize(input_tokens)
 
@@ -608,6 +624,10 @@ class NoteToNoteGenerator(MidiGenerator):
         device: torch.device,
         additional_tokens: list[str] = None,
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        start_offset = prompt_notes.start.min()
+        prompt_notes.start -= start_offset
+        prompt_notes.end -= start_offset
+
         input_tokens = tokenizer.tokenize(prompt_notes)
         prompt_notes = tokenizer.untokenize(input_tokens)
 
