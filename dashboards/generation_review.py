@@ -220,7 +220,7 @@ def main():
                     model=model,
                     tokenizer=tokenizer,
                     device=device,
-                    additional_tokens=additional_token,
+                    additional_tokens=additional_tokens,
                 )
         st.dataframe(generated_notes)
         prompt_piece = ff.MidiPiece(df=prompt_notes.copy())
