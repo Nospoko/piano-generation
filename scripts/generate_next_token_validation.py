@@ -109,7 +109,4 @@ if __name__ == "__main__":
     parser.add_argument("device", type=str, help="Device to perform calculations on.")
     args = parser.parse_args()
 
-    main(
-        model_path=args.model_path,
-        device=args.device,
-    )
+    main(model_path=args.model_path, device=args.device, task="next_token_prediction")

@@ -594,7 +594,7 @@ class NoteToNoteGenerator(MidiGenerator):
         for token in tokens:
             if token.startswith("NOTE_OFF"):
                 n_notes += 1
-            if n_notes >= step and not token.endswith("T"):
+            if n_notes >= step:
                 break
             it += 1
 
@@ -610,9 +610,9 @@ class NoteToNoteGenerator(MidiGenerator):
         for token in tokens:
             if token.startswith("NOTE_OFF"):
                 n_notes += 1
+            trimmed_tokens = np.append(arr=trimmed_tokens, values=[token])
             if n_notes >= size:
                 break
-            trimmed_tokens = np.append(arr=trimmed_tokens, values=[token])
 
         return trimmed_tokens.tolist()
 
@@ -690,6 +690,9 @@ class NoteToNoteGenerator(MidiGenerator):
             tokens=output_tokens,
             complete_notes=False,
         )
+        import streamlit as st
+
+        st.write(pd.concat([prompt_notes, target_notes]).drop_duplicates(keep=False))
         return prompt_notes, target_notes
 
 
