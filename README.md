@@ -31,7 +31,8 @@ To install the Piano Generation package, follow these steps:
 Here's a basic example of how to use the Piano Generation package:
 
 ```python
-from piano_generation import GPT, Task, MidiGenerator, ExponentialTokenizer
+from piano_generation import GPT, Task, MidiGenerator
+from midi_tokenizers import ExponentialTimeTokenizer
 from piano_generation.utils import load_cfg, load_tokenizer, load_checkpoint, initialize_gpt_model
 from piano_generation.database import database_manager
 

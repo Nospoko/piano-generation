@@ -10,13 +10,14 @@ import fortepyan as ff
 import streamlit as st
 import streamlit_pianoroll
 from omegaconf import OmegaConf
+from midi_tokenizers import ExponentialTimeTokenizer
 
 from dashboards.components import download_button
+from piano_generation import Task, RepeatingModel
 from piano_generation.generation.tasks import task_map
 import piano_generation.generation.generators as generators
 import piano_generation.database.database_manager as database_manager
 from piano_generation.artifacts import special_tokens, composer_tokens
-from piano_generation import Task, RepeatingModel, ExponentialTokenizer
 from dashboards.utils import dataset_configuration, select_model_and_device
 from piano_generation.utils import load_cfg, load_tokenizer, load_checkpoint, initialize_gpt_model
 
@@ -181,7 +182,7 @@ def main():
     if st.button("Generate"):
         if checkpoint_path == "DummyModel":
             model = RepeatingModel()
-            tokenizer = ExponentialTokenizer(
+            tokenizer = ExponentialTimeTokenizer(
                 min_time_unit=0.01,
                 n_velocity_bins=32,
                 special_tokens=special_tokens,

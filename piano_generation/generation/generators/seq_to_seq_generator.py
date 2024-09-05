@@ -3,8 +3,10 @@ import re
 import torch
 import pandas as pd
 from torch import nn
+from midi_tokenizers import ExponentialTimeTokenizer
+from midi_trainable_tokenizers import AwesomeMidiTokenizer
 
-from piano_generation import Task, AwesomeTokenizer, ExponentialTokenizer
+from piano_generation import Task
 from piano_generation.generation.generators.base_generator import MidiGenerator
 
 
@@ -52,7 +54,7 @@ class SeqToSeqIterativeGenerator(MidiGenerator):
 
     @staticmethod
     def calculate_token_duration(
-        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        tokenizer: ExponentialTimeTokenizer | AwesomeMidiTokenizer,
         tokens: list[str],
     ):
         t = 0
@@ -64,7 +66,7 @@ class SeqToSeqIterativeGenerator(MidiGenerator):
 
     def trim_tokens_front(
         time_step: float,
-        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        tokenizer: ExponentialTimeTokenizer | AwesomeMidiTokenizer,
         tokens: list[str],
     ):
         t = 0
@@ -86,7 +88,7 @@ class SeqToSeqIterativeGenerator(MidiGenerator):
 
     def trim_tokens_back(
         duration: float,
-        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        tokenizer: ExponentialTimeTokenizer | AwesomeMidiTokenizer,
         tokens: list[str],
     ):
         t = 0
@@ -104,7 +106,7 @@ class SeqToSeqIterativeGenerator(MidiGenerator):
         self,
         prompt_notes: pd.DataFrame,
         model: nn.Module,
-        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        tokenizer: ExponentialTimeTokenizer | AwesomeMidiTokenizer,
         device: torch.device,
         additional_tokens: list[str] = None,
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -222,7 +224,7 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
 
     @staticmethod
     def calculate_token_duration(
-        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        tokenizer: ExponentialTimeTokenizer | AwesomeMidiTokenizer,
         tokens: list[str],
     ):
         t = 0
@@ -235,7 +237,7 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
     @staticmethod
     def trim_tokens_front(
         time_step: float,
-        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        tokenizer: ExponentialTimeTokenizer | AwesomeMidiTokenizer,
         tokens: list[str],
     ):
         t = 0
@@ -258,7 +260,7 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
     @staticmethod
     def trim_tokens_back(
         duration: float,
-        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        tokenizer: ExponentialTimeTokenizer | AwesomeMidiTokenizer,
         tokens: list[str],
     ):
         t = 0
@@ -277,7 +279,7 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
         self,
         prompt_notes: pd.DataFrame,
         model: nn.Module,
-        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        tokenizer: ExponentialTimeTokenizer | AwesomeMidiTokenizer,
         device: torch.device,
         additional_tokens: list[str] = None,
     ) -> tuple[pd.DataFrame, pd.DataFrame]:

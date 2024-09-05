@@ -3,8 +3,8 @@ from abc import ABC, abstractmethod
 import torch
 import pandas as pd
 from torch import nn
-
-from piano_generation import AwesomeTokenizer, ExponentialTokenizer
+from midi_tokenizers import ExponentialTimeTokenizer
+from midi_trainable_tokenizers import AwesomeMidiTokenizer
 
 
 class MidiGenerator(ABC):
@@ -16,7 +16,7 @@ class MidiGenerator(ABC):
         self,
         prompt_notes: pd.DataFrame,
         model: nn.Module,
-        tokenizer: ExponentialTokenizer | AwesomeTokenizer,
+        tokenizer: ExponentialTimeTokenizer | AwesomeMidiTokenizer,
         device: torch.device,
         additional_tokens: list[str] = None,
     ) -> tuple[pd.DataFrame, pd.DataFrame]:

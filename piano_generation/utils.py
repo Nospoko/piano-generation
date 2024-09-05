@@ -1,9 +1,10 @@
 import torch
 from omegaconf import OmegaConf, DictConfig
+from midi_tokenizers import ExponentialTimeTokenizer
+from midi_trainable_tokenizers import AwesomeMidiTokenizer
 
 from piano_generation import GPT, GPTConfig
 from piano_generation.artifacts import special_tokens
-from piano_generation.model.tokenizers import AwesomeTokenizer, ExponentialTokenizer
 
 
 def load_cfg(checkpoint: dict) -> DictConfig:
@@ -25,9 +26,9 @@ def load_tokenizer(cfg: DictConfig):
             min_time_unit = tokenizer_parameters["min_time_unit"]
             n_velocity_bins = tokenizer_parameters["min_velocity_bins"]
             tokenizer_path = f"pretrained/awesome_tokenizers/awesome-tokenizer-{min_time_unit}-{n_velocity_bins}.json"
-            return AwesomeTokenizer.from_file(tokenizer_path)
+            return AwesomeMidiTokenizer.from_file(tokenizer_path)
         else:
-            return ExponentialTokenizer(**tokenizer_parameters)
+            return ExponentialTimeTokenizer(**tokenizer_parameters)
     else:
         tokenizer_parameters = OmegaConf.to_container(cfg.data.tokenizer_parameters)
         tokenizer_parameters |= {"special_tokens": special_tokens}
@@ -36,9 +37,9 @@ def load_tokenizer(cfg: DictConfig):
             min_time_unit = tokenizer_parameters["min_time_unit"]
             n_velocity_bins = tokenizer_parameters["min_velocity_bins"]
             tokenizer_path = f"pretrained/awesome_tokenizers/awesome-tokenizer-{min_time_unit}-{n_velocity_bins}.json"
-            return AwesomeTokenizer.from_file(tokenizer_path)
+            return AwesomeMidiTokenizer.from_file(tokenizer_path)
         else:
-            return ExponentialTokenizer(**tokenizer_parameters)
+            return ExponentialTimeTokenizer(**tokenizer_parameters)
 
 
 def initialize_gpt_model(

@@ -2,16 +2,11 @@ import torch
 import fortepyan as ff
 import streamlit as st
 import streamlit_pianoroll
+from midi_tokenizers import ExponentialTimeTokenizer
 
 from piano_generation.artifacts import special_tokens
 from piano_generation.generation.tasks import task_map
-from piano_generation import (
-    DummyModel,
-    NextTokenGenerator,
-    ExponentialTokenizer,
-    SeqToSeqIterativeGenerator,
-    SeqToSeqTokenwiseGenerator,
-)
+from piano_generation import DummyModel, NextTokenGenerator, SeqToSeqIterativeGenerator, SeqToSeqTokenwiseGenerator
 
 
 def main():
@@ -25,7 +20,7 @@ def main():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = DummyModel().to(device)
-    tokenizer = ExponentialTokenizer(
+    tokenizer = ExponentialTimeTokenizer(
         min_time_unit=0.01,
         n_velocity_bins=32,
         special_tokens=special_tokens,

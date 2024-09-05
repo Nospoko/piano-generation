@@ -5,11 +5,13 @@ from contextlib import nullcontext
 
 import torch
 import pandas as pd
+from midi_tokenizers import ExponentialTimeTokenizer
+from midi_trainable_tokenizers import AwesomeMidiTokenizer
 
+from piano_generation import GPT
 from piano_generation.artifacts import get_composer_token
 import piano_generation.generation.generators as generators
 import piano_generation.database.database_manager as database_manager
-from piano_generation import GPT, AwesomeTokenizer, ExponentialTokenizer
 from piano_generation.utils import load_cfg, load_tokenizer, initialize_gpt_model
 
 
@@ -19,7 +21,7 @@ def run_generation_step(
     run_name: str,
     validation_examples: pd.DataFrame,
     generator: generators.MidiGenerator,
-    tokenizer: Union[AwesomeTokenizer, ExponentialTokenizer],
+    tokenizer: Union[AwesomeMidiTokenizer, ExponentialTimeTokenizer],
     device: torch.device,
 ):
     for idx, example in validation_examples.iterrows():
