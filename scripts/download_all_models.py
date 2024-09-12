@@ -52,8 +52,6 @@ if __name__ == "__main__":
     for filename in model_files:
         local_path = download_model(REPO_ID, filename)
         if local_path:
-            model = load_model(local_path)
-            if model:
-                loaded_models.append(model)
+            loaded_models.append(local_path)
 
     print(f"Successfully loaded {len(loaded_models)} models out of {len(model_files)} found in the repository.")

@@ -158,6 +158,34 @@ def main(model_path: str, device: str, tasks: List[str], generator_type: str):
                     max_new_tokens=4096,
                 ),
             ]
+
+        elif generator_type == "SeqToSeqIterativeGenerator":
+            generators_to_use = [
+                generators.SeqToSeqIterativeGenerator(
+                    task=task_name,
+                    prompt_context_duration=15,
+                    target_context_duration=10,
+                    time_step=2,
+                    temperature=1.0,
+                    max_new_tokens=4096,
+                ),
+                generators.SeqToSeqIterativeGenerator(
+                    task=task_name,
+                    prompt_context_duration=25,
+                    target_context_duration=15,
+                    time_step=2,
+                    temperature=1.0,
+                    max_new_tokens=4096,
+                ),
+                generators.SeqToSeqIterativeGenerator(
+                    task=task_name,
+                    prompt_context_duration=15,
+                    target_context_duration=10,
+                    time_step=2,
+                    temperature=0.8,
+                    max_new_tokens=4096,
+                ),
+            ]
         run_validation_for_task(
             model=model,
             generators_to_use=generators_to_use,
