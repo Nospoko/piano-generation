@@ -31,14 +31,12 @@ def main():
         if selected_model_name:
             selected_models = models_df[models_df["name"] == selected_model_name]
             model_tokens = selected_models["total_tokens"].tolist()
-            model_losses = selected_models["best_val_loss"].tolist()
 
             selected_model_params = st.selectbox(
                 label="Select tokens",
-                options=zip(model_tokens, model_losses),
-                format_func=format_model_params,
+                options=model_tokens,
             )
-            selected_model_tokens, _ = selected_model_params
+            selected_model_tokens = selected_model_params
             selected_model = selected_models[selected_models["total_tokens"] == selected_model_tokens].iloc[0]
             st.json(selected_model.to_dict(), expanded=False)
 
