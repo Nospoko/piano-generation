@@ -71,12 +71,12 @@ class SeqToSeqIterativeGenerator(MidiGenerator):
     ):
         t = 0
         tokens = tokens.copy()
-        while t < time_step and len(tokens) > 0:
+        while len(tokens) > 0:
             token = tokens.pop(0)
             if re.search(".T$", token) is not None:
                 dt: float = tokenizer.token_to_dt[token]
                 t += dt
-            if t >= time_step or len(tokens) == 0:
+            if (t >= time_step and re.search(".T$", token) is None) or len(tokens) == 0:
                 break
 
         # in case too much was popped
@@ -242,12 +242,12 @@ class SeqToSeqTokenwiseGenerator(MidiGenerator):
     ):
         t = 0
         tokens = tokens.copy()
-        while t < time_step and len(tokens) > 0:
+        while len(tokens) > 0:
             token = tokens.pop(0)
             if re.search(".T$", token) is not None:
                 dt: float = tokenizer.token_to_dt[token]
                 t += dt
-            if t >= time_step or len(tokens) == 0:
+            if (t >= time_step and re.search(".T$", token) is None) or len(tokens) == 0:
                 break
 
         # in case too much was popped
