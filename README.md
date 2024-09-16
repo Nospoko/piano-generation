@@ -30,6 +30,10 @@ To install the Piano Generation package, follow these steps:
 
 Here's a basic example of how to use the Piano Generation package:
 
+```sh
+python -m scripts.download_model model_to_download.pt
+```
+
 ```python
 from piano_generation import GPT, Task, MidiGenerator
 from midi_tokenizers import ExponentialTimeTokenizer
@@ -37,7 +41,7 @@ from piano_generation.utils import load_cfg, load_tokenizer, load_checkpoint, in
 from piano_generation.database import database_manager
 
 # Load a pre-trained model
-checkpoint = load_checkpoint("path/to/your/checkpoint.pt")
+checkpoint = load_checkpoint("checkpoints/downloaded_checkpoint.pt")
 cfg = load_cfg(checkpoint)
 tokenizer = load_tokenizer(cfg)
 model = initialize_gpt_model(cfg, checkpoint, device="cuda")

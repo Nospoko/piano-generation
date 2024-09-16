@@ -11,8 +11,8 @@ import piano_generation.database.database_manager as database_manager
 
 
 def format_model_params(model_params):
-    total_tokens, model_loss = model_params
-    return f"{total_tokens:,}, best_val_loss: {model_loss}"
+    total_tokens, model_loss, train_loss = model_params
+    return f"{total_tokens:,}, best_val_loss: {model_loss}, train_loss: {train_loss}"
 
 
 def main():
@@ -31,12 +31,15 @@ def main():
         if selected_model_name:
             selected_models = models_df[models_df["name"] == selected_model_name]
             model_tokens = selected_models["total_tokens"].tolist()
+            model_best_val_loss = selected_models["best_val_loss"]
+            model_train_loss = selected_models["train_loss"]
 
             selected_model_params = st.selectbox(
                 label="Select tokens",
-                options=model_tokens,
+                options=zip(model_tokens, model_best_val_loss, model_train_loss),
+                format_func=format_model_params,
             )
-            selected_model_tokens = selected_model_params
+            selected_model_tokens = selected_model_params[0]
             selected_model = selected_models[selected_models["total_tokens"] == selected_model_tokens].iloc[0]
             st.json(selected_model.to_dict(), expanded=False)
 
