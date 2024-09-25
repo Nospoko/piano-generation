@@ -89,7 +89,7 @@ def upload_midi_file(task: str):
                 max_value=len(notes) - 1,
                 value=len(notes) - 1,
             )
-            notes = slice_source_notes(
+            source_notes = slice_source_notes(
                 notes=notes,
                 start_note_id=start_note_id,
                 end_note_id=end_note_id,
@@ -97,7 +97,7 @@ def upload_midi_file(task: str):
             if not use_whole_file:
                 notes, _ = prepare_prompt(
                     task=task,
-                    notes=notes,
+                    notes=source_notes,
                 )
             else:
                 notes = notes.iloc[start_note_id : end_note_id + 1].reset_index(drop=True)
@@ -109,7 +109,7 @@ def upload_midi_file(task: str):
             st.subheader("Selected Note Range")
             streamlit_pianoroll.from_fortepyan(piece=ff.MidiPiece(notes))
 
-            return notes, source
+            return source_notes, notes, source
         finally:
             os.unlink(temp_midi_path)
 
@@ -126,12 +126,10 @@ def main():
     use_custom_midi = st.checkbox("Use custom MIDI file", value=False)
 
     if use_custom_midi:
-        source_notes, source = upload_midi_file(task=generator.task)
+        source_notes, prompt_notes, source = upload_midi_file(task=generator.task)
         if source_notes is None:
             st.warning("Please upload a MIDI file to continue.")
             return
-        # Source notes are the same as prompt notes because no extraction needed
-        prompt_notes = source_notes.copy()
 
     else:
         dataset = dataset_configuration()
@@ -172,7 +170,10 @@ def main():
             "start": start_note_id,
             "end": end_note_id,
         }
+        source_piece = ff.MidiPiece(source_notes)
         prompt_piece = ff.MidiPiece(prompt_notes)
+
+        streamlit_pianoroll.from_fortepyan(piece=source_piece)
         streamlit_pianoroll.from_fortepyan(piece=prompt_piece)
     additional_token = st.selectbox("additional token", options=["None"] + composer_tokens)
     if additional_token == "None":
