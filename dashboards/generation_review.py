@@ -224,7 +224,7 @@ def main():
                     device=device,
                     additional_tokens=additional_tokens,
                 )
-        st.dataframe(generated_notes)
+        st.dataframe(generated_notes.sort_values(by="end"))
         prompt_piece = ff.MidiPiece(df=prompt_notes.copy())
         generated_piece = ff.MidiPiece(df=generated_notes.copy())
         if generated_notes is not None and not generated_notes.empty:

@@ -76,7 +76,7 @@ class SeqToSeqIterativeGenerator(MidiGenerator):
             if re.search(".T$", token) is not None:
                 dt: float = tokenizer.token_to_dt[token]
                 t += dt
-            if (t >= time_step and re.search(".T$", token) is None) or len(tokens) == 0:
+            elif t >= time_step or len(tokens) == 0:
                 break
 
         # in case too much was popped
