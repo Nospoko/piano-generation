@@ -1,15 +1,17 @@
 import os
-import sys
 
 import torch
 from dotenv import load_dotenv
-from huggingface_hub import hf_hub_download
+from huggingface_hub import HfApi, hf_hub_download
 
 load_dotenv()
 HF_READ_TOKEN = os.environ.get("HF_READ_TOKEN")
 
 MODELS_DIR = "checkpoints"
+
 REPO_ID = "wmatejuk/piano-gpt2"
+
+api = HfApi()
 
 
 def download_model(repo_id, filename):
@@ -35,16 +37,21 @@ def load_model(model_path):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python -m scripts.download_one_model.py <model_filename>")
-        sys.exit(1)
-
-    model_filename = sys.argv[1]
-
     os.makedirs(MODELS_DIR, exist_ok=True)
 
-    local_path = download_model(REPO_ID, model_filename)
-    if local_path:
-        print(f"Downloaded model: {model_filename}")
-    else:
-        print(f"Failed to download model: {model_filename}")
+    try:
+        repo_files = api.list_repo_files(repo_id=REPO_ID, token=HF_READ_TOKEN)
+    except Exception as e:
+        print(f"Error listing repository files: {str(e)}")
+        exit(1)
+
+    model_files = [f for f in repo_files if f.endswith(".pt")]
+
+    # Download and load models
+    loaded_models = []
+    for filename in model_files:
+        local_path = download_model(REPO_ID, filename)
+        if local_path:
+            loaded_models.append(local_path)
+
+    print(f"Successfully loaded {len(loaded_models)} models out of {len(model_files)} found in the repository.")
