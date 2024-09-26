@@ -180,6 +180,8 @@ def main():
         additional_tokens = None
     else:
         additional_tokens = [additional_token]
+
+    source |= {"additional_tokens": additional_tokens}
     if st.button("Generate"):
         if checkpoint_path == "DummyModel":
             model = RepeatingModel()
