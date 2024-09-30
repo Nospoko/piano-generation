@@ -10,7 +10,7 @@ import fortepyan as ff
 import streamlit as st
 import streamlit_pianoroll
 from omegaconf import OmegaConf
-from midi_tokenizers import ExponentialTimeTokenizer
+from midi_tokenizers import MidiTokenizer, ExponentialTimeTokenizer
 
 from dashboards.components import download_button
 from piano_generation import Task, RepeatingModel
@@ -204,7 +204,10 @@ def main():
                 )
 
             cfg = load_cfg(checkpoint=checkpoint)
-            tokenizer = load_tokenizer(cfg=cfg)
+            if "tokenizer" in checkpoint:
+                tokenizer = MidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
+            else:
+                tokenizer = load_tokenizer(cfg=cfg)
 
             st.write("Training config")
             st.json(OmegaConf.to_container(cfg), expanded=False)

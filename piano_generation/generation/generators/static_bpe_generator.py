@@ -3,13 +3,13 @@ import re
 import torch
 import pandas as pd
 from torch import nn
-from midi_tokenizers import ExponentialTimeTokenizer
+from midi_trainable_tokenizers import AwesomeMidiTokenizer
 
 from piano_generation import Task
 from piano_generation.generation.generators.base_generator import MidiGenerator
 
 
-class StaticGenerator(MidiGenerator):
+class StaticBpeGenerator(MidiGenerator):
     """
     This generation method does not use a rolling window.
     """
@@ -45,9 +45,11 @@ class StaticGenerator(MidiGenerator):
 
     @staticmethod
     def calculate_token_duration(
-        tokenizer: ExponentialTimeTokenizer,
+        tokenizer: AwesomeMidiTokenizer,
         tokens: list[str],
     ):
+        token_ids = tokenizer.awesome_tokens_to_base_ids(awesome_tokens=tokens)
+        tokens = [tokenizer.base_tokenizer.vocab[token_id] for token_id in token_ids]
         t = 0
         for token in tokens:
             if re.search(".T$", token) is not None:
@@ -59,7 +61,7 @@ class StaticGenerator(MidiGenerator):
         self,
         prompt_notes: pd.DataFrame,
         model: nn.Module,
-        tokenizer: ExponentialTimeTokenizer,
+        tokenizer: AwesomeMidiTokenizer,
         device: torch.device,
         additional_tokens: list[str] = None,
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -100,7 +102,7 @@ class StaticGenerator(MidiGenerator):
             next_token = tokenizer.vocab[next_token_id]
             output_tokens.append(next_token)
 
-            if StaticGenerator.calculate_token_duration(tokenizer=tokenizer, tokens=output_tokens) >= prompt_notes_duration:
+            if StaticBpeGenerator.calculate_token_duration(tokenizer=tokenizer, tokens=output_tokens) >= prompt_notes_duration:
                 break
 
         target_notes = tokenizer.untokenize(tokens=output_tokens)
