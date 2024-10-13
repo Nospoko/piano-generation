@@ -186,6 +186,27 @@ def main(model_path: str, device: str, tasks: List[str], generator_type: str):
                     max_new_tokens=4096,
                 ),
             ]
+        elif generator_type == "StaticGenerator":
+            generators_to_use = [
+                generators.StaticGenerator(
+                    task=task_name,
+                    notes_in_prompt=128,
+                    temperature=1.0,
+                    max_new_tokens=4096,
+                ),
+                generators.StaticGenerator(
+                    task=task_name,
+                    notes_in_prompt=128,
+                    temperature=1.1,
+                    max_new_tokens=4096,
+                ),
+                generators.StaticGenerator(
+                    task=task_name,
+                    notes_in_prompt=128,
+                    temperature=0.9,
+                    max_new_tokens=4096,
+                ),
+            ]
         run_validation_for_task(
             model=model,
             generators_to_use=generators_to_use,

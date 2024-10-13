@@ -7,9 +7,9 @@ import fortepyan as ff
 import streamlit as st
 import streamlit_pianoroll
 from streamlit.errors import DuplicateWidgetID
-import database.database_manager as database_manager
 
 from dashboards.utils import dataset_configuration
+import piano_generation.database.database_manager as database_manager
 
 
 def upload_midi_file():

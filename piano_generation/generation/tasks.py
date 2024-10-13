@@ -334,6 +334,17 @@ class PerformanceTask(Task):
         return self.simplify_notes(notes=notes), notes
 
 
+class AboveBassPrediction(Task):
+    def __init__(self):
+        super().__init__("<BASS>", "<NO_BASS>")
+
+    def generate(self, notes: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        threshold = 41
+        source_notes = notes[notes.pitch < threshold]
+        target_notes = notes[notes.pitch >= threshold]
+        return source_notes, target_notes
+
+
 task_map: Dict[str, Type[Task]] = {
     "above_median_prediction": AboveMedianPrediction,
     "above_low_quartile_prediction": AboveLowQuartilePrediction,
@@ -355,6 +366,7 @@ task_map: Dict[str, Type[Task]] = {
     "time_denoising": TimeDenoising,
     "comprehensive_denoising": ComprehensiveDenoising,
     "performance_task": PerformanceTask,
+    "above_bass_prediction": AboveBassPrediction,
 }
 
 
@@ -369,6 +381,7 @@ all_tasks = [
     "below_high_quartile_prediction",
     "middle_quartiles_prediction",
     "extreme_quartiles_prediction",
+    "above_bass_prediction",
     # Velocity tasks
     "loud_prediction",
     "very_soft_prediction",
