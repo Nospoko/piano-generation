@@ -19,7 +19,10 @@ def load_checkpoint(checkpoint_path: str, device: str):
 
 def load_tokenizer(cfg: DictConfig):
     if "tokenizer" in cfg:
-        tokenizer_parameters = OmegaConf.to_container(cfg.tokenizer.tokenizer_parameters)
+        if "tokenizer_parameters" in cfg.tokenizer:
+            tokenizer_parameters = OmegaConf.to_container(cfg.tokenizer.tokenizer_parameters)
+        else:
+            tokenizer_parameters = OmegaConf.to_container(cfg.tokenizer.parameters)
         tokenizer_parameters |= {"special_tokens": special_tokens}
 
         if cfg.tokenizer.tokenizer == "AwesomeMidiTokenizer":
