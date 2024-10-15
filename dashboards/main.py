@@ -5,7 +5,7 @@ from dashboards.browse_database import main as browse_dataset
 from dashboards.transcription_human_comparison import main as comparison
 
 st.set_page_config(
-    page_title="PyData Presentation",
+    page_title="Piano Generation",
     page_icon=":musical_keyboard:",
     layout="wide",
 )
