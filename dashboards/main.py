@@ -2,7 +2,7 @@ import streamlit as st
 
 from dashboards.task_review import main as task_review
 from dashboards.browse_database import main as browse_dataset
-from dashboards.transcription_human_comparison import main as comparison
+from dashboards.generation_review import main as generation_review
 
 st.set_page_config(
     page_title="Piano Generation",
@@ -12,7 +12,7 @@ st.set_page_config(
 
 
 def main():
-    dashboards = ["browse_dataset", "generation_review", "task_review", "transcription human comparison"]
+    dashboards = ["browse_dataset", "generation_review", "task_review"]
     dashboard = st.selectbox(label="Select dashboard", options=dashboards)
 
     match dashboard:
@@ -20,8 +20,8 @@ def main():
             browse_dataset()
         case "task_review":
             task_review()
-        case "transcription human comparison":
-            comparison()
+        case "generation_review":
+            generation_review()
 
 
 if __name__ == "__main__":
