@@ -10,6 +10,7 @@ import fortepyan as ff
 import streamlit as st
 import streamlit_pianoroll
 from omegaconf import OmegaConf
+from midi_trainable_tokenizers import AwesomeMidiTokenizer
 from midi_tokenizers import MidiTokenizer, ExponentialTimeTokenizer
 
 from dashboards.components import download_button
@@ -205,7 +206,15 @@ def main():
 
             cfg = load_cfg(checkpoint=checkpoint)
             if "tokenizer" in checkpoint:
-                tokenizer = MidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
+                if "name" in cfg.tokenizer:
+                    name = cfg.tokenizer.name
+                elif "tokenizer" in cfg.tokenizer:
+                    name = cfg.tokenizer.tokenizer
+                if name == "AwesomeMidiTokenizer":
+                    tokenizer = AwesomeMidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
+                else:
+                    tokenizer = ExponentialTimeTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
+
             else:
                 tokenizer = load_tokenizer(cfg=cfg)
 
