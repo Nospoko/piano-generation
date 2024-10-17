@@ -8,6 +8,7 @@ import torch
 import pandas as pd
 import fortepyan as ff
 import streamlit as st
+from streamlit.errors import DuplicateWidgetID
 import streamlit_pianoroll
 from omegaconf import OmegaConf
 from midi_trainable_tokenizers import AwesomeMidiTokenizer
@@ -108,8 +109,10 @@ def upload_midi_file(task: str):
                 "end": end_note_id,
             }
             st.subheader("Selected Note Range")
-            streamlit_pianoroll.from_fortepyan(piece=ff.MidiPiece(notes))
-
+            try:
+                streamlit_pianoroll.from_fortepyan(piece=ff.MidiPiece(notes))
+            except DuplicateWidgetID:
+                pass
             return source_notes, notes, source
         finally:
             os.unlink(temp_midi_path)
