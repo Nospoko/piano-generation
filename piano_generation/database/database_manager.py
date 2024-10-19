@@ -73,34 +73,22 @@ def insert_generation(
         source=source,
     )
 
-    # Check if the record already exists
-    query = f"""
-    SELECT generation_id
-    FROM {generations_table}
-    WHERE generator_id = {generator_id}
-      AND prompt_notes::text = '{json.dumps(prompt_notes)}'::text
-      AND source_id = source_id
-      AND model_id = {model_id}
-    """
-    existing_record = database_cnx.read_sql(sql=query)
-
-    if existing_record.empty:
-        generation_data = {
-            "generator_id": generator_id,
-            "model_id": model_id,
-            "source_id": source_id,
-            "prompt_notes": prompt_notes,
-            "generated_notes": generated_notes,
-        }
-        # Insert the generation data
-        df = pd.DataFrame([generation_data])
-        database_cnx.to_sql(
-            df=df,
-            table=generations_table,
-            dtype=generations_dtype,
-            index=False,
-            if_exists="append",
-        )
+    generation_data = {
+        "generator_id": generator_id,
+        "model_id": model_id,
+        "source_id": source_id,
+        "prompt_notes": prompt_notes,
+        "generated_notes": generated_notes,
+    }
+    # Insert the generation data
+    df = pd.DataFrame([generation_data])
+    database_cnx.to_sql(
+        df=df,
+        table=generations_table,
+        dtype=generations_dtype,
+        index=False,
+        if_exists="append",
+    )
 
 
 def insert_source(source: dict, notes: pd.DataFrame) -> int:

@@ -117,7 +117,7 @@ def upload_midi_file(task: str):
         finally:
             os.unlink(temp_midi_path)
 
-    return None, None
+    return None, None, None
 
 
 def main():

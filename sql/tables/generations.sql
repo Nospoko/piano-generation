@@ -6,5 +6,4 @@ CREATE TABLE generations(
     generated_notes JSON,  -- generated notes
     prompt_notes JSON,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(generator_id, prompt_id, model_id)  -- One generations per parameters
 );
