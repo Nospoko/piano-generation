@@ -352,6 +352,7 @@ def register_model(model_registration: dict) -> int:
     if not existing_records.empty:
         return existing_records.iloc[0]["model_id"]
 
+    # FIXME date should be provided as model registration field
     # Extract datetime from model name
     date_match = re.search(r"(\d{4}-\d{2}-\d{2}-\d{2}-\d{2})", model_registration["name"])
     if date_match:
