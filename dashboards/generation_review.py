@@ -8,9 +8,9 @@ import torch
 import pandas as pd
 import fortepyan as ff
 import streamlit as st
-from streamlit.errors import DuplicateWidgetID
 import streamlit_pianoroll
 from omegaconf import OmegaConf
+from streamlit.errors import DuplicateWidgetID
 from midi_trainable_tokenizers import AwesomeMidiTokenizer
 from midi_tokenizers import MidiTokenizer, ExponentialTimeTokenizer
 
