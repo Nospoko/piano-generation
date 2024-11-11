@@ -1,7 +1,6 @@
 import torch
 from omegaconf import OmegaConf, DictConfig
-from midi_tokenizers import ExponentialTimeTokenizer
-from midi_trainable_tokenizers import AwesomeMidiTokenizer
+from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
 
 from piano_generation import GPT
 from piano_generation.artifacts import special_tokens
