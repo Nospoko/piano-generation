@@ -180,6 +180,9 @@ def main():
                     sources = database_manager.get_source(row["source_id"])
                     source_notes = sources.iloc[0]["notes"]
                     source_notes_df = pd.DataFrame(source_notes)
+                    offset = source_notes_df.start.min()
+                    source_notes_df.start -= offset
+                    source_notes_df.end -= offset
                     default_tokenizer = ExponentialTimeTokenizer(0.01, 32)
                     source_notes_df = default_tokenizer.untokenize(default_tokenizer.tokenize(source_notes_df))
 
