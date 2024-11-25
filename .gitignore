@@ -5,4 +5,5 @@ tmp
 checkpoints
 *.egg*
 src*
-notes.py
+*notes.py
+*.csv
