@@ -8,8 +8,8 @@ import streamlit_pianoroll
 from streamlit.errors import DuplicateWidgetID
 from midi_tokenizers import ExponentialTimeTokenizer
 
-from dashboards.components import download_button
 import piano_generation.database.database_manager as database_manager
+from dashboards.components import display_metrics, download_button, initialize_metric_components
 
 
 def get_unique_rows(df1, df2, subset=None, tolerance=0.02):
@@ -108,11 +108,19 @@ def main():
 
                 # Get unique tasks for this model's predictions
                 tasks = database_manager.get_model_tasks(model_id=selected_model_id)
-                selected_task = st.selectbox("Select Task", tasks + ["All"], key="task_selector")
+                selected_task = st.selectbox(
+                    "Select Task",
+                    tasks + ["All"],
+                    key="task_selector",
+                )
 
                 # Get unique generator names for this model's predictions
                 generator_names = database_manager.get_model_generator_names(model_id=selected_model_id)
-                selected_generator = st.selectbox("Select Generator", ["All"] + generator_names, key="generator_selector")
+                selected_generator = st.selectbox(
+                    "Select Generator",
+                    ["All"] + generator_names,
+                    key="generator_selector",
+                )
 
                 # Filter predictions based on selected task and generator
                 generator_filters = {}
@@ -198,7 +206,11 @@ def main():
                     midi_path = f"tmp/{midi_name}.mid"
                     source_midi_path = f"tmp/{midi_name}_source.mid"
 
-                    original_piece_df, _ = get_unique_rows(source_notes_df, prompt_notes_df, subset=["pitch", "start", "end"])
+                    original_piece_df, _ = get_unique_rows(
+                        source_notes_df,
+                        prompt_notes_df,
+                        subset=["pitch", "start", "end"],
+                    )
                     original_piece_part = ff.MidiPiece(original_piece_df)
 
                     st.write("#### Original")
@@ -275,7 +287,16 @@ def main():
                             unsafe_allow_html=True,
                         )
                     os.unlink(full_midi_path)
+
+                    st.write("#### Distribution Analysis")
+                    calculate_metrics = initialize_metric_components()
+                    key_corr, pitch_corr, f1_score, key_metrics, pitch_metrics, f1_metrics = calculate_metrics(
+                        original_piece_df,
+                        generated_notes_df,
+                    )
+                    display_metrics(key_corr, pitch_corr, f1_score, key_metrics, pitch_metrics, f1_metrics)
                     st.divider()  # Add a divider between predictions
+
                 else:
                     st.write("No predictions found for this prompt and model combination.")
 
