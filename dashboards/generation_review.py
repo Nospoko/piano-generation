@@ -2,9 +2,12 @@ import os
 import re
 import json
 import tempfile
+import datetime as dt
+from functools import partial
 from contextlib import nullcontext
 
 import torch
+import requests
 import pandas as pd
 import fortepyan as ff
 import streamlit as st
@@ -122,6 +125,7 @@ def upload_midi_file(task: str):
 def main():
     st.title("MIDI Generation Dashboard")
 
+    user_api_key = st.text_input("Pianoroll API key", value="")
     device, checkpoint_path = select_model_and_device()
     generator = select_generator()
     ctx = nullcontext()
@@ -177,7 +181,11 @@ def main():
         prompt_piece = ff.MidiPiece(prompt_notes)
 
         streamlit_pianoroll.from_fortepyan(piece=source_piece)
-        streamlit_pianoroll.from_fortepyan(piece=prompt_piece)
+        try:
+            streamlit_pianoroll.from_fortepyan(piece=prompt_piece)
+        except DuplicateWidgetID:
+            st.write("Prompt is the same as prompt")
+
     additional_token = st.selectbox("additional token", options=["None"] + composer_tokens)
     if additional_token == "None":
         additional_tokens = None
@@ -185,66 +193,84 @@ def main():
         additional_tokens = [additional_token]
 
     source |= {"additional_tokens": additional_tokens}
-    if st.button("Generate"):
-        if checkpoint_path == "DummyModel":
-            model = RepeatingModel()
-            tokenizer = ExponentialTimeTokenizer(
-                min_time_unit=0.01,
-                n_velocity_bins=32,
-                special_tokens=special_tokens,
-            )
-            model.token_id = 25 if additional_tokens is None else tokenizer.token_to_id[additional_token]
-            model_name = "dummy"
-        else:
-            with st.spinner("Loading checkpoint..."):
-                checkpoint = load_checkpoint(checkpoint_path, device="cpu")
 
-            st.success(f"Model loaded! Best validation loss: {checkpoint['best_val_loss']:.4f}")
-            if "wandb" in checkpoint:
-                st.link_button(
-                    label="View Training Run",
-                    url=checkpoint["wandb"],
+    if "generated" not in st.session_state:
+        st.session_state["generated"] = False
+
+    if "generated_piece" not in st.session_state:
+        st.session_state["generated_piece"] = None
+    if "prompt_piece" not in st.session_state:
+        st.session_state["prompt_piece"] = None
+    generated_notes = None
+    if st.button("Generate") or st.session_state["generated"]:
+        if not st.session_state["generated"]:
+            if checkpoint_path == "DummyModel":
+                model = RepeatingModel()
+                tokenizer = ExponentialTimeTokenizer(
+                    min_time_unit=0.01,
+                    n_velocity_bins=32,
+                    special_tokens=special_tokens,
                 )
-
-            cfg = load_cfg(checkpoint=checkpoint)
-            if "tokenizer" in checkpoint:
-                if "name" in cfg.tokenizer:
-                    name = cfg.tokenizer.name
-                elif "tokenizer" in cfg.tokenizer:
-                    name = cfg.tokenizer.tokenizer
-                if name == "AwesomeMidiTokenizer":
-                    tokenizer = AwesomeMidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
-                else:
-                    tokenizer = ExponentialTimeTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
-
+                model.token_id = 25 if additional_tokens is None else tokenizer.token_to_id[additional_token]
+                model_name = "dummy"
             else:
-                tokenizer = load_tokenizer(cfg=cfg)
+                with st.spinner("Loading checkpoint..."):
+                    checkpoint = load_checkpoint(checkpoint_path, device="cpu")
 
-            st.write("Training config")
-            st.json(OmegaConf.to_container(cfg), expanded=False)
+                st.success(f"Model loaded! Best validation loss: {checkpoint['best_val_loss']:.4f}")
+                if "wandb" in checkpoint:
+                    st.link_button(
+                        label="View Training Run",
+                        url=checkpoint["wandb"],
+                    )
 
-            model_name: str = os.path.basename(checkpoint_path)
-            model_name = model_name.removesuffix(".pt")
+                cfg = load_cfg(checkpoint=checkpoint)
+                if "tokenizer" in checkpoint:
+                    if "name" in cfg.tokenizer:
+                        name = cfg.tokenizer.name
+                    elif "tokenizer" in cfg.tokenizer:
+                        name = cfg.tokenizer.tokenizer
+                    if name == "AwesomeMidiTokenizer":
+                        tokenizer = AwesomeMidiTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
+                    else:
+                        tokenizer = ExponentialTimeTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer"])
 
-            # Initialize model
-            ptdtype = {"float32": torch.float32, "bfloat16": torch.bfloat16, "float16": torch.float16}[cfg.system.dtype]
-            device_type = "cuda" if "cuda" in device else "cpu"
-            ctx = nullcontext() if device_type == "cpu" else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
-            model = initialize_gpt_model(cfg, checkpoint, device)
+                else:
+                    tokenizer = load_tokenizer(cfg=cfg)
 
-        with st.spinner("Generating MIDI..."):
-            with ctx:
-                prompt_notes, generated_notes = generator.generate(
-                    prompt_notes=prompt_notes,
-                    model=model,
-                    tokenizer=tokenizer,
-                    device=device,
-                    additional_tokens=additional_tokens,
-                )
-        st.dataframe(generated_notes.sort_values(by="end"))
-        prompt_piece = ff.MidiPiece(df=prompt_notes.copy())
-        generated_piece = ff.MidiPiece(df=generated_notes.copy())
-        if generated_notes is not None and not generated_notes.empty:
+                st.write("Training config")
+                st.json(OmegaConf.to_container(cfg), expanded=False)
+
+                model_name: str = os.path.basename(checkpoint_path)
+                model_name = model_name.removesuffix(".pt")
+
+                # Initialize model
+                ptdtype = {"float32": torch.float32, "bfloat16": torch.bfloat16, "float16": torch.float16}[cfg.system.dtype]
+                device_type = "cuda" if "cuda" in device else "cpu"
+                ctx = nullcontext() if device_type == "cpu" else torch.amp.autocast(device_type=device_type, dtype=ptdtype)
+                model = initialize_gpt_model(cfg, checkpoint, device)
+
+            with st.spinner("Generating MIDI..."):
+                with ctx:
+                    prompt_notes, generated_notes = generator.generate(
+                        prompt_notes=prompt_notes,
+                        model=model,
+                        tokenizer=tokenizer,
+                        device=device,
+                        additional_tokens=additional_tokens,
+                    )
+            st.dataframe(generated_notes.sort_values(by="end"))
+
+            st.session_state["model_name"] = model_name
+            st.session_state["prompt_piece"] = prompt_piece = ff.MidiPiece(df=prompt_notes.copy())
+            st.session_state["generated_piece"] = generated_piece = ff.MidiPiece(df=generated_notes.copy())
+            st.session_state["generated"] = True
+            st.session_state["wandb"] = checkpoint["wandb"]
+        generated_piece = st.session_state["generated_piece"]
+        prompt_piece = st.session_state["prompt_piece"]
+        if generated_piece is not None and not generated_piece.df.empty:
+            model_name = st.session_state.get("model_name")
+            wandb_link = st.session_state.get("wandb")
             st.success("Generation complete!")
             streamlit_pianoroll.from_fortepyan(piece=generated_piece)
 
@@ -274,17 +300,51 @@ def main():
                     model_checkpoint=checkpoint,
                     model_name=model_name,
                     generator=generator,
-                    generated_notes=generated_notes,
-                    prompt_notes=prompt_notes,
+                    generated_notes=generated_piece.df,
+                    prompt_notes=prompt_piece.df,
                     source_notes=source_notes,
                     source=source,
                 )
+                st.session_state["generated"] = False
 
-            st.button(
-                "Add to database",
-                key="add",
-                on_click=add_to_database,
-            )
+            def add_to_pianoroll(post_title: str = None, post_description: str = None):
+                if not post_title:
+                    post_title = "GPT-generated music"
+                if not post_description:
+                    post_description = f"wandb run: {wandb_link}"
+                payload = {
+                    "model_notes": generated_piece.df.to_dict(orient="records"),
+                    "prompt_notes": prompt_piece.df.to_dict(orient="records"),
+                    "post_title": post_title,
+                    "post_description": post_description,
+                }
+                api_endpoint = "https://pianoroll.io/api/v1/generation_pianorolls"
+                headers = {
+                    "UserApiToken": user_api_key,
+                }
+                try:
+                    r = requests.post(api_endpoint, headers=headers, json=payload)
+                    print(r)
+                except requests.exceptions.ConnectionError as e:
+                    print(e)
+                st.session_state["generated"] = False
+
+            button_col1, button_col2, _ = st.columns([1, 1, 3])
+            with button_col1:
+                st.button(
+                    "Add to database",
+                    key="add",
+                    on_click=add_to_database,
+                )
+            with button_col2:
+                with st.form(key="upload"):
+                    post_title = st.text_input("Post Title")
+                    post_description = st.text_input("Post Description")
+                    submitted = st.form_submit_button(
+                        "Post on pianoroll.io",
+                    )
+                if submitted:
+                    add_to_pianoroll(post_title=post_title, post_description=post_description)
 
             out_piece = ff.MidiPiece(pd.concat([prompt_notes, generated_notes]))
             # Allow download of the full MIDI with context
@@ -300,8 +360,14 @@ def main():
                     unsafe_allow_html=True,
                 )
             os.unlink(full_midi_path)
-        else:
-            st.error("Generation failed or not implemented.")
+
+            def new_generation():
+                st.session_state["generated"] = False
+
+            st.button(
+                "New generation",
+                on_click=new_generation,
+            )
 
 
 if __name__ == "__main__":
