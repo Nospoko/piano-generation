@@ -27,6 +27,13 @@ class StaticGenerator(MidiGenerator):
         self.notes_in_prompt = notes_in_prompt
         self.task_generator = Task.get_task(task_name=task)
 
+    def __rich_repr__(self):
+        yield "StaticGenerator"
+        yield "temperature", self.temperature
+        yield "max_new_tokens", self.max_new_tokens
+        yield "notes_in_prompt", self.notes_in_prompt
+        yield "task", self.task_generator
+
     @staticmethod
     def default_parameters() -> dict:
         return {
@@ -75,11 +82,12 @@ class StaticGenerator(MidiGenerator):
         prompt_notes = tokenizer.untokenize(input_tokens)
 
         output_tokens = []
-        source_control_tokens = [self.task_generator.source_token]
+        source_control_tokens = [self.task_generator.source_token] + additional_tokens
         target_control_tokens = [self.task_generator.target_token]
 
         if additional_tokens is not None:
             target_control_tokens += additional_tokens
+
         input_tokens = source_control_tokens + input_tokens + target_control_tokens
         token_ids = [tokenizer.token_to_id[token] for token in input_tokens]
         for _ in range(self.max_new_tokens):

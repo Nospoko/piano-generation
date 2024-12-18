@@ -12,7 +12,7 @@ from streamlit.errors import DuplicateWidgetID
 import streamlit_pianoroll
 from omegaconf import OmegaConf
 from midi_trainable_tokenizers import AwesomeMidiTokenizer
-from midi_tokenizers import MidiTokenizer, ExponentialTimeTokenizer
+from midi_tokenizers import ExponentialTimeTokenizer
 
 from dashboards.components import download_button
 from piano_generation import Task, RepeatingModel
