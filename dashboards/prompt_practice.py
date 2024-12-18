@@ -1,16 +1,16 @@
 import os
+from glob import glob
+
+import torch
 import requests
-import streamlit_pianoroll
 import pandas as pd
 import fortepyan as ff
 import streamlit as st
-import torch
-from glob import glob
+import streamlit_pianoroll
 
 from piano_generation import MidiGenerator
-from piano_generation.utils import load_cfg, load_tokenizer, load_checkpoint, initialize_gpt_model
-
 from dashboards.components import download_button
+from piano_generation.utils import load_cfg, load_tokenizer, load_checkpoint, initialize_gpt_model
 
 
 def main():
@@ -91,7 +91,7 @@ def main():
             "notes_in_prompt": 128,
             "temperature": temperature,
             "max_new_tokens": max_new_tokens,
-        }
+        },
     )
     model = checkpoint["model"]
     tokenizer = checkpoint["tokenizer"]
