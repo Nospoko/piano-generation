@@ -93,7 +93,6 @@ def main(model_path: str, device: str, tasks: List[str], generator_type: str):
         cfg=cfg,
         checkpoint=checkpoint,
         device=device,
-        pad_token_id=tokenizer.pad_token_id,
     )
 
     ptdtype = {"float32": torch.float32, "bfloat16": torch.bfloat16, "float16": torch.float16}[cfg.system.dtype]
