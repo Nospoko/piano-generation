@@ -6,7 +6,7 @@ import streamlit as st
 from datasets import Dataset, load_dataset
 
 
-def select_model_and_device():
+def device_model_selection():
     with st.sidebar:
         st.header("Model Configuration")
         devices = [f"cuda:{it}" for it in range(torch.cuda.device_count())] + ["cpu", "mps"]

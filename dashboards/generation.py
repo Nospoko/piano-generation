@@ -11,8 +11,7 @@ from streamlit.errors import DuplicateWidgetID
 from midi_tokenizers import ExponentialTimeTokenizer
 from piano_dataset.piano_tasks import PianoTask, PianoTaskManager
 
-from piano_generation.model.gpt2 import GPT
-from dashboards.utils import select_model_and_device
+from dashboards.utils import device_model_selection
 from piano_generation.utils import initialize_gpt_model
 from piano_generation.artifacts import dataset_tokens, composer_tokens
 
@@ -103,16 +102,13 @@ def main():
     st.title("MIDI Generation Dashboard")
 
     # user_api_key = st.text_input("Pianoroll API key", value="")
-    device, checkpoint_path = select_model_and_device()
+    device, checkpoint_path = device_model_selection()
     source_notes, prompt_notes, source = upload_midi_file()
     if source_notes is None:
         st.warning("Please upload a MIDI file to continue.")
         return
 
-    checkpoint = load_model_checkpoint(
-        checkpoint_path=checkpoint_path, 
-        map_location=device
-    )
+    checkpoint = load_model_checkpoint(checkpoint_path=checkpoint_path, map_location=device)
     tokenizer = ExponentialTimeTokenizer.from_dict(tokenizer_desc=checkpoint["tokenizer_desc"])
     special_tokens = composer_tokens + dataset_tokens
 
