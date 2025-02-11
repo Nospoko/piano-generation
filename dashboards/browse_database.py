@@ -1,13 +1,68 @@
 import os
 
+import numpy as np
 import pandas as pd
 import fortepyan as ff
 import streamlit as st
 import streamlit_pianoroll
 from streamlit.errors import DuplicateWidgetID
+from midi_tokenizers import ExponentialTimeTokenizer
 
 from dashboards.components import download_button
 import piano_generation.database.database_manager as database_manager
+
+
+def get_unique_rows(df1, df2, subset=None, tolerance=0.02):
+    """
+    Find rows that are present in only one of the dataframes, not both,
+    with a tolerance for float comparisons.
+
+    Parameters:
+    df1 (pandas.DataFrame): First dataframe
+    df2 (pandas.DataFrame): Second dataframe
+    subset (list): Optional list of columns to consider when comparing rows
+    tolerance (float): Tolerance level for float comparisons (default: 0.02)
+
+    Returns:
+    tuple: (rows_only_in_df1, rows_only_in_df2)
+    """
+    # Ensure index is unique in both dataframes
+    df1 = df1.reset_index(drop=True)
+    df2 = df2.reset_index(drop=True)
+
+    # If subset is not specified, use all columns that exist in both dataframes
+    if subset is None:
+        subset = list(set(df1.columns) & set(df2.columns))
+
+    def find_match(row, other_df, subset_cols, tolerance):
+        """Helper function to find matching rows within tolerance"""
+        for _, other_row in other_df[subset_cols].iterrows():
+            match = True
+            for col in subset_cols:
+                val1 = row[col]
+                val2 = other_row[col]
+
+                # Handle float comparison with tolerance
+                if isinstance(val1, (float, np.float64)) and isinstance(val2, (float, np.float64)):
+                    if not np.isclose(val1, val2, rtol=tolerance, atol=tolerance):
+                        match = False
+                        break
+                # Handle non-float comparison
+                elif val1 != val2:
+                    match = False
+                    break
+
+            if match:
+                return True
+        return False
+
+    # Find rows unique to df1
+    df1_unique = df1[~df1[subset].apply(lambda row: find_match(row, df2, subset, tolerance), axis=1)]
+
+    # Find rows unique to df2
+    df2_unique = df2[~df2[subset].apply(lambda row: find_match(row, df1, subset, tolerance), axis=1)]
+
+    return df1_unique, df2_unique
 
 
 def format_model_params(model_params):
@@ -123,6 +178,11 @@ def main():
                     row = predictions_df.iloc[idx]
                     prompt_notes = row["prompt_notes"]
                     prompt_notes_df = pd.DataFrame(prompt_notes)
+                    sources = database_manager.get_source(row["source_id"])
+                    source_notes = sources.iloc[0]["notes"]
+                    source_notes_df = pd.DataFrame(source_notes)
+                    default_tokenizer = ExponentialTimeTokenizer(0.01, 32)
+                    source_notes_df = default_tokenizer.untokenize(default_tokenizer.tokenize(source_notes_df))
 
                     st.json(row["source"])
                     st.json({"generator_name": row["generator_name"]} | row["generator_parameters"])
@@ -134,7 +194,27 @@ def main():
                     midi_name = f"{selected_model_name}_{selected_model_tokens:.2f}_generation"
                     prompt_midi_path = f"tmp/{midi_name}_prompt.mid"
                     midi_path = f"tmp/{midi_name}.mid"
+                    source_midi_path = f"tmp/{midi_name}_source.mid"
 
+                    original_piece_df, _ = get_unique_rows(source_notes_df, prompt_notes_df, subset=["pitch", "start", "end"])
+                    original_piece_part = ff.MidiPiece(original_piece_df)
+
+                    st.write("#### Original")
+                    try:
+                        streamlit_pianoroll.from_fortepyan(piece=prompt_piece, secondary_piece=original_piece_part)
+                    except DuplicateWidgetID:
+                        st.write("Duplicate widget")
+                    original_piece_part.to_midi().write(source_midi_path)
+                    with open(source_midi_path, "rb") as file:
+                        st.markdown(
+                            download_button(
+                                file.read(),
+                                source_midi_path.split("/")[-1],
+                                "Download original target",
+                            ),
+                            unsafe_allow_html=True,
+                        )
+                    os.unlink(source_midi_path)
                     st.write("#### Prompt")
                     try:
                         streamlit_pianoroll.from_fortepyan(piece=prompt_piece)
