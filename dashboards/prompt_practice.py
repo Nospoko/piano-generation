@@ -130,6 +130,9 @@ def main():
             prompt_piece = ff.MidiPiece(prompt_notes)
             generated_piece = ff.MidiPiece(generated_notes)
 
+            if checkpoint["cfg"].stage == "next_token_pretraining":
+                generated_piece.time_shift(prompt_piece.end)
+
             streamlit_pianoroll.from_fortepyan(prompt_piece, generated_piece)
 
             if pianoroll_apikey:
