@@ -8,7 +8,7 @@ from huggingface_hub import hf_hub_download
 load_dotenv()
 HF_READ_TOKEN = os.environ.get("HF_READ_TOKEN")
 
-MODELS_DIR = "checkpoints"
+MODELS_DIR = "."
 
 
 def download_model(repo_id, filename):
