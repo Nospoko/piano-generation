@@ -7,12 +7,13 @@ import pandas as pd
 import fortepyan as ff
 import streamlit as st
 import streamlit_pianoroll
+from omegaconf import OmegaConf
 from midi_tokenizers import ExponentialTimeTokenizer
 from piano_dataset.piano_tasks import PianoTaskManager
 
 from dashboards.components import download_button
 from dashboards.utils import device_model_selection
-from piano_generation.artifacts import dataset_tokens, composer_tokens
+from piano_generation.artifacts import dataset_tokens
 from piano_generation.utils import load_checkpoint, initialize_gpt_model
 
 
@@ -23,6 +24,8 @@ def main():
     st.write("Checkpoint:", checkpoint_path)
     model_setup = load_cache_checkpoint(checkpoint_path, device=device)
     run_config = model_setup["run_config"]
+    st.write("Training settings:")
+    st.write(OmegaConf.to_container(run_config.training))
 
     random_seed = st.number_input(
         label="random seed",
@@ -55,22 +58,23 @@ def main():
     # for a user? Definitely needs an upload
     prompt_options = glob("tmp/prompts/*.mid") + [None]
 
-    special_tokens = composer_tokens + dataset_tokens
+    # Composer tokens are iterated over later, so we don't want
+    # the user to add them here
+    # special_tokens = composer_tokens + dataset_tokens
+    # We have to make a copy or streamlit loops over with every change
+    optional_special_tokens = list(dataset_tokens)
 
     generation_token = None
     if run_config.model_task == "piano_task":
         piano_task_manager: PianoTaskManager = model_setup["piano_task_manager"]
-        special_tokens += piano_task_manager.get_special_tokens()
+        optional_special_tokens += piano_task_manager.get_special_tokens()
         generation_token = "<GENAI>"
 
     selected_special_tokens = st.multiselect(
         "Select additional special tokens to include:",
-        options=special_tokens,
+        options=optional_special_tokens,
         help="Choose from available special tokens to add to your prompt",
     )
-
-    if run_config.model_task == "piano_task":
-        selected_special_tokens.append(generation_token)
 
     prompt_path = st.selectbox(
         label="select prompt file",
@@ -92,14 +96,19 @@ def main():
     prompt_notes.end *= speedup_factor
 
     streamlit_pianoroll.from_fortepyan(prompt_piece)
-    #
+
     model = model_setup["model"]
     tokenizer = model_setup["tokenizer"]
 
     possible_tokens = ["<BACH>", "<MOZART>", "<CHOPIN>", None]
     for additional_token in possible_tokens:
-        st.write("Token:", additional_token, "special tokens:", selected_special_tokens)
-        selected_special_tokens = [additional_token] + selected_special_tokens
+        if additional_token:
+            pre_input_tokens = [additional_token] + selected_special_tokens
+        else:
+            pre_input_tokens = selected_special_tokens
+
+        st.write("Pre-input tokens:", pre_input_tokens)
+
         # Generator randomness comes from torch.multinomial, so we can make it
         # fully deterministic by setting global torch random seed
         for it in range(6):
@@ -119,8 +128,7 @@ def main():
                 _model=model,
                 _tokenizer=tokenizer,
                 device=device,
-                selected_special_tokens=selected_special_tokens,
-                seperate_with_generation_token=(run_config.model_task == "piano_task"),
+                pre_input_tokens=pre_input_tokens,
                 generation_token=generation_token,
                 temperature=temperature,
                 max_new_tokens=max_new_tokens,
@@ -196,7 +204,7 @@ def cache_generation(
     seed: int,
     _model,
     _tokenizer,
-    selected_special_tokens: list[str],
+    pre_input_tokens: list[str],
     generation_token: str = None,
     device: str = "cuda",
     max_new_tokens: int = 2048,
@@ -205,7 +213,8 @@ def cache_generation(
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     torch.random.manual_seed(seed)
     with st.spinner("gpu goes brrrrrrrrrr"):
-        input_tokens = selected_special_tokens + _tokenizer.tokenize(prompt_notes)
+        input_tokens = pre_input_tokens + _tokenizer.tokenize(prompt_notes)
+
         if generation_token is not None:
             input_tokens.append(generation_token)
 
