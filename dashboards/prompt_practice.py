@@ -46,14 +46,14 @@ def main():
 
     speedup_factor = st.number_input(
         label="speedup factor",
-        value=1.2,
+        value=1.0,
         min_value=0.3,
         max_value=2.5,
     )
 
     # TODO: What would be a convenient way to manage prompts
     # for a user? Definitely needs an upload
-    prompt_options = glob("tmp/*.mid") + [None]
+    prompt_options = glob("tmp/prompts/*.mid") + [None]
 
     special_tokens = composer_tokens + dataset_tokens
 
