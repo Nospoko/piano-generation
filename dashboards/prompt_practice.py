@@ -10,11 +10,10 @@ import streamlit_pianoroll
 from midi_tokenizers import ExponentialTimeTokenizer
 from piano_dataset.piano_tasks import PianoTaskManager
 
-from piano_generation import MidiGenerator
 from dashboards.components import download_button
 from dashboards.utils import device_model_selection
 from piano_generation.artifacts import dataset_tokens, composer_tokens
-from piano_generation.utils import load_cfg, load_checkpoint, initialize_gpt_model
+from piano_generation.utils import load_checkpoint, initialize_gpt_model
 
 
 def main():
@@ -22,7 +21,8 @@ def main():
     # checkpoint_path = "checkpoints/midi-gpt2-302M-subsequence-4096-ctx-2024-09-08-19-42last.pt"
     device, checkpoint_path = device_model_selection()
     st.write("Checkpoint:", checkpoint_path)
-    checkpoint = load_cache_checkpoint(checkpoint_path, device=device)
+    model_setup = load_cache_checkpoint(checkpoint_path, device=device)
+    run_config = model_setup["run_config"]
 
     random_seed = st.number_input(
         label="random seed",
@@ -58,8 +58,8 @@ def main():
     special_tokens = composer_tokens + dataset_tokens
 
     generation_token = None
-    if checkpoint["cfg"].stage == "piano_task":
-        piano_task_manager: PianoTaskManager = checkpoint["piano_task_manager"]
+    if run_config.model_task == "piano_task":
+        piano_task_manager: PianoTaskManager = model_setup["piano_task_manager"]
         special_tokens += piano_task_manager.get_special_tokens()
         generation_token = "<GENAI>"
 
@@ -69,7 +69,7 @@ def main():
         help="Choose from available special tokens to add to your prompt",
     )
 
-    if checkpoint["cfg"].stage == "piano_task":
+    if run_config.model_task == "piano_task":
         selected_special_tokens.append(generation_token)
 
     prompt_path = st.selectbox(
@@ -93,8 +93,8 @@ def main():
 
     streamlit_pianoroll.from_fortepyan(prompt_piece)
     #
-    model = checkpoint["model"]
-    tokenizer = checkpoint["tokenizer"]
+    model = model_setup["model"]
+    tokenizer = model_setup["tokenizer"]
 
     possible_tokens = ["<BACH>", "<MOZART>", "<CHOPIN>", None]
     for additional_token in possible_tokens:
@@ -120,7 +120,7 @@ def main():
                 _tokenizer=tokenizer,
                 device=device,
                 selected_special_tokens=selected_special_tokens,
-                seperate_with_generation_token=(checkpoint["cfg"].stage == "piano_task"),
+                seperate_with_generation_token=(run_config.model_task == "piano_task"),
                 generation_token=generation_token,
                 temperature=temperature,
                 max_new_tokens=max_new_tokens,
@@ -130,7 +130,7 @@ def main():
             prompt_piece = ff.MidiPiece(prompt_notes)
             generated_piece = ff.MidiPiece(generated_notes)
 
-            if checkpoint["cfg"].stage == "next_token_pretraining":
+            if run_config.model_task == "next_token_pretraining":
                 generated_piece.time_shift(prompt_piece.end)
 
             streamlit_pianoroll.from_fortepyan(prompt_piece, generated_piece)
@@ -211,7 +211,9 @@ def cache_generation(
 
         st.write(input_tokens)
 
-        input_token_ids = torch.tensor([_tokenizer.token_to_id[token] for token in input_tokens]).unsqueeze(0).to(device)
+        # TODO This should be a tokenizer method
+        tokens = [_tokenizer.token_to_id[token] for token in input_tokens]
+        input_token_ids = torch.tensor(tokens).unsqueeze(0).to(device)
 
         generated_token_ids = _model.generate_new_tokens(
             idx=input_token_ids,
@@ -226,22 +228,25 @@ def cache_generation(
 
 
 @st.cache_data
-def load_cache_checkpoint(checkpoint_path: str, device):
+def load_cache_checkpoint(checkpoint_path: str, device) -> dict:
     # Load a pre-trained model
     checkpoint = load_checkpoint(checkpoint_path=checkpoint_path, device=device)
-    cfg = load_cfg(checkpoint)
-    model = initialize_gpt_model(cfg, checkpoint, device=device)
+
+    run_config = checkpoint["run_config"]
+    model = initialize_gpt_model(run_config, checkpoint, device=device)
     tokenizer = ExponentialTimeTokenizer.from_dict(checkpoint["tokenizer_desc"])
 
-    if cfg.stage == "piano_task":
-        piano_task_manager = PianoTaskManager(tasks_config=checkpoint["piano_tasks_config"])
+    if run_config.model_task == "piano_task":
+        tasks_config = run_config.tasks
+        piano_task_manager = PianoTaskManager(tasks_config=tasks_config)
     else:
         piano_task_manager = None
 
+    # TODO Function is missnamed, this is not a checkpoint
     return {
         "model": model,
         "tokenizer": tokenizer,
-        "cfg": cfg,
+        "run_config": run_config,
         "piano_task_manager": piano_task_manager,
     }
 

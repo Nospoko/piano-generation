@@ -1,14 +1,8 @@
 import torch
 from omegaconf import OmegaConf, DictConfig
-from midi_tokenizers import AwesomeMidiTokenizer, ExponentialTimeTokenizer
+from midi_tokenizers import ExponentialTimeTokenizer
 
 from piano_generation import GPT
-from piano_generation.artifacts import special_tokens
-
-
-def load_cfg(checkpoint: dict) -> DictConfig:
-    train_config = checkpoint["run_config"]
-    return OmegaConf.create(train_config)
 
 
 def load_checkpoint(checkpoint_path: str, device: str):
