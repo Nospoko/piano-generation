@@ -24,76 +24,87 @@ def main():
     st.write("Checkpoint:", checkpoint_path)
     model_setup = load_cache_checkpoint(checkpoint_path, device=device)
     run_config = model_setup["run_config"]
+
     st.write("Training settings:")
     st.write(OmegaConf.to_container(run_config.training))
 
-    random_seed = st.number_input(
-        label="random seed",
-        value=137,
-        max_value=100_000,
-        min_value=0,
-    )
-    max_new_tokens = st.number_input(
-        label="max new tokens",
-        min_value=64,
-        max_value=4096,
-        value=2048,
-    )
-    temperature = st.number_input(
-        label="temperature",
-        min_value=0.0,
-        max_value=2.0,
-        value=1.0,
-        step=0.05,
-    )
+    st.write("Training stats:")
+    st.write(model_setup["run_stats"])
 
-    speedup_factor = st.number_input(
-        label="speedup factor",
-        value=1.0,
-        min_value=0.3,
-        max_value=2.5,
-    )
+    with st.form("generation setup"):
+        random_seed = st.number_input(
+            label="random seed",
+            value=137,
+            max_value=100_000,
+            min_value=0,
+        )
+        max_new_tokens = st.number_input(
+            label="max new tokens",
+            min_value=64,
+            max_value=4096,
+            value=2048,
+        )
+        temperature = st.number_input(
+            label="temperature",
+            min_value=0.0,
+            max_value=2.0,
+            value=1.0,
+            step=0.05,
+        )
 
-    # TODO: What would be a convenient way to manage prompts
-    # for a user? Definitely needs an upload
-    prompt_options = glob("tmp/prompts/*.mid") + [None]
+        speedup_factor = st.number_input(
+            label="speedup factor",
+            value=1.0,
+            min_value=0.3,
+            max_value=2.5,
+        )
 
-    # Composer tokens are iterated over later, so we don't want
-    # the user to add them here
-    # special_tokens = composer_tokens + dataset_tokens
-    # We have to make a copy or streamlit loops over with every change
-    optional_special_tokens = list(dataset_tokens)
+        # TODO: What would be a convenient way to manage prompts
+        # for a user? Definitely needs an upload
+        prompt_options = glob("tmp/prompts/*.mid") + [None]
 
-    generation_token = None
-    if run_config.model_task == "piano_task":
-        piano_task_manager: PianoTaskManager = model_setup["piano_task_manager"]
-        optional_special_tokens += piano_task_manager.get_special_tokens()
-        generation_token = "<GENAI>"
+        # Composer tokens are iterated over later, so we don't want
+        # the user to add them here
+        # special_tokens = composer_tokens + dataset_tokens
+        # We have to make a copy or streamlit loops over with every change
+        optional_special_tokens = list(dataset_tokens)
 
-    selected_special_tokens = st.multiselect(
-        "Select additional special tokens to include:",
-        options=optional_special_tokens,
-        help="Choose from available special tokens to add to your prompt",
-    )
+        generation_token = None
+        if run_config.model_task == "piano_task":
+            piano_task_manager: PianoTaskManager = model_setup["piano_task_manager"]
+            optional_special_tokens += piano_task_manager.get_special_tokens()
+            generation_token = "<GENAI>"
 
-    prompt_path = st.selectbox(
-        label="select prompt file",
-        options=prompt_options,
-        index=None,
-    )
-    pianoroll_apikey = st.text_input(
-        label="pianoroll apikey",
-        type="password",
-    )
+        selected_special_tokens = st.multiselect(
+            "Select additional special tokens to include:",
+            options=optional_special_tokens,
+            help="Choose from available special tokens to add to your prompt",
+        )
+
+        prompt_path = st.selectbox(
+            label="select prompt file",
+            options=prompt_options,
+            index=None,
+        )
+        pianoroll_apikey = st.text_input(
+            label="pianoroll apikey",
+            type="password",
+        )
+        _ = st.form_submit_button()
+
     st.write(pianoroll_apikey)
 
     if not prompt_path:
         return
 
     prompt_piece = ff.MidiPiece.from_file(prompt_path)
-    prompt_notes: pd.DataFrame = prompt_piece.df
-    prompt_notes.start *= speedup_factor
-    prompt_notes.end *= speedup_factor
+
+    # TODO Remove inplace operations from fortepyan
+    prompt_piece.time_shift(-prompt_piece.df.start.min())
+
+    prompt_notes_df: pd.DataFrame = prompt_piece.df
+    prompt_notes_df.start /= speedup_factor
+    prompt_notes_df.end /= speedup_factor
 
     streamlit_pianoroll.from_fortepyan(prompt_piece)
 
@@ -122,8 +133,8 @@ def main():
                 "local_seed": local_seed,
             }
 
-            prompt_notes, generated_notes = cache_generation(
-                prompt_notes=prompt_notes,
+            prompt_notes_df, generated_notes = cache_generation(
+                prompt_notes_df=prompt_notes_df,
                 seed=local_seed,
                 _model=model,
                 _tokenizer=tokenizer,
@@ -135,7 +146,7 @@ def main():
                 **generation_properties,
             )
 
-            prompt_piece = ff.MidiPiece(prompt_notes)
+            prompt_piece = ff.MidiPiece(prompt_notes_df)
             generated_piece = ff.MidiPiece(generated_notes)
 
             if run_config.model_task == "next_token_pretraining":
@@ -157,7 +168,7 @@ def main():
                     )
                     st.write("POSTED!")
 
-            out_piece = ff.MidiPiece(pd.concat([prompt_notes, generated_notes]))
+            out_piece = ff.MidiPiece(pd.concat([prompt_notes_df, generated_notes]))
             # Allow download of the full MIDI with context
             full_midi_path = f"tmp/tmp_{additional_token}_{local_seed}.mid"
             out_piece.to_midi().write(full_midi_path)
@@ -180,11 +191,11 @@ def post_to_pianoroll(
     pianoroll_apikey: str,
 ):
     model_notes = model_piece.df.to_dict(orient="records")
-    prompt_notes = prompt_piece.df.to_dict(orient="records")
+    prompt_notes_df = prompt_piece.df.to_dict(orient="records")
 
     payload = {
         "model_notes": model_notes,
-        "prompt_notes": prompt_notes,
+        "prompt_notes_df": prompt_notes_df,
         "post_title": "GENAI",
         "post_description": "My model did this!",
     }
@@ -200,7 +211,7 @@ def post_to_pianoroll(
 
 @st.cache_data
 def cache_generation(
-    prompt_notes: pd.DataFrame,
+    prompt_notes_df: pd.DataFrame,
     seed: int,
     _model,
     _tokenizer,
@@ -213,7 +224,7 @@ def cache_generation(
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     torch.random.manual_seed(seed)
     with st.spinner("gpu goes brrrrrrrrrr"):
-        input_tokens = pre_input_tokens + _tokenizer.tokenize(prompt_notes)
+        input_tokens = pre_input_tokens + _tokenizer.tokenize(prompt_notes_df)
 
         if generation_token is not None:
             input_tokens.append(generation_token)
@@ -233,7 +244,7 @@ def cache_generation(
         generated_token_ids = generated_token_ids.squeeze(0).cpu().numpy()
         generated_notes = _tokenizer.decode(generated_token_ids)
 
-    return prompt_notes, generated_notes
+    return prompt_notes_df, generated_notes
 
 
 @st.cache_data
@@ -256,6 +267,7 @@ def load_cache_checkpoint(checkpoint_path: str, device) -> dict:
         "model": model,
         "tokenizer": tokenizer,
         "run_config": run_config,
+        "run_stats": checkpoint["run_stats"],
         "piano_task_manager": piano_task_manager,
     }
 
