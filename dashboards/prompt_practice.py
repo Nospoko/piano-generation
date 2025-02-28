@@ -25,6 +25,15 @@ def main():
     model_setup = load_cache_checkpoint(checkpoint_path, device=device)
     run_config = model_setup["run_config"]
 
+    if run_config.model_task != "piano_task":
+        st.write(
+            (
+                "This dashboard is designed for the PIANO Task generations,"
+                "but your model was trained for something else"
+            )
+        )
+        return
+
     st.write("Training settings:")
     st.write(OmegaConf.to_container(run_config.training))
 
@@ -42,7 +51,7 @@ def main():
             label="max new tokens",
             min_value=64,
             max_value=4096,
-            value=2048,
+            value=128,
         )
         temperature = st.number_input(
             label="temperature",
@@ -67,17 +76,20 @@ def main():
         # the user to add them here
         # special_tokens = composer_tokens + dataset_tokens
         # We have to make a copy or streamlit loops over with every change
-        optional_special_tokens = list(dataset_tokens)
+        # optional_special_tokens = list(dataset_tokens)
 
-        generation_token = None
-        if run_config.model_task == "piano_task":
-            piano_task_manager: PianoTaskManager = model_setup["piano_task_manager"]
-            optional_special_tokens += piano_task_manager.get_special_tokens()
-            generation_token = "<GENAI>"
+        piano_task_manager: PianoTaskManager = model_setup["piano_task_manager"]
+        generation_token = "<GENAI>"
 
-        selected_special_tokens = st.multiselect(
-            "Select additional special tokens to include:",
-            options=optional_special_tokens,
+        dataset_token = st.selectbox(
+            label="Select a dataset token:",
+            options=dataset_tokens,
+            help="Choose from available special tokens to add to your prompt",
+        )
+
+        piano_task_tokens = st.multiselect(
+            label="Select tokens defining a PIANO task:",
+            options=piano_task_manager.get_special_tokens(),
             help="Choose from available special tokens to add to your prompt",
         )
 
@@ -111,20 +123,18 @@ def main():
     model = model_setup["model"]
     tokenizer = model_setup["tokenizer"]
 
-    possible_tokens = ["<BACH>", "<MOZART>", "<CHOPIN>", None]
-    for additional_token in possible_tokens:
-        if additional_token:
-            pre_input_tokens = [additional_token] + selected_special_tokens
-        else:
-            pre_input_tokens = selected_special_tokens
+    composer_tokens = ["<BACH>", "<MOZART>", "<CHOPIN>", "<UNKNOWN_COMPOSER>"]
+    for composer_token in composer_tokens:
+        pre_input_tokens = [dataset_token, composer_token] + piano_task_tokens
 
         st.write("Pre-input tokens:", pre_input_tokens)
 
         # Generator randomness comes from torch.multinomial, so we can make it
         # fully deterministic by setting global torch random seed
-        for it in range(6):
+        for it in range(2):
             local_seed = random_seed + it * 1000
             st.write("Seed:", local_seed)
+            st.write("".join(pre_input_tokens))
 
             # This acts as a caching key
             generation_properties = {
@@ -149,16 +159,13 @@ def main():
             prompt_piece = ff.MidiPiece(prompt_notes_df)
             generated_piece = ff.MidiPiece(generated_notes)
 
-            if run_config.model_task == "next_token_pretraining":
-                generated_piece.time_shift(prompt_piece.end)
-
             streamlit_pianoroll.from_fortepyan(prompt_piece, generated_piece)
 
             if pianoroll_apikey:
                 # TODO: Add title and description control
                 make_proll_post = st.button(
                     label="post to pianoroll.io",
-                    key=f"{it}-{additional_token}",
+                    key=f"{it}-{composer_token}",
                 )
                 if make_proll_post:
                     post_to_pianoroll(
@@ -170,7 +177,7 @@ def main():
 
             out_piece = ff.MidiPiece(pd.concat([prompt_notes_df, generated_notes]))
             # Allow download of the full MIDI with context
-            full_midi_path = f"tmp/tmp_{additional_token}_{local_seed}.mid"
+            full_midi_path = f"tmp/tmp_{composer_token}_{local_seed}.mid"
             out_piece.to_midi().write(full_midi_path)
             with open(full_midi_path, "rb") as file:
                 st.markdown(
@@ -226,14 +233,12 @@ def cache_generation(
     with st.spinner("gpu goes brrrrrrrrrr"):
         input_tokens = pre_input_tokens + _tokenizer.tokenize(prompt_notes_df)
 
+        # This goes after the prompt
         if generation_token is not None:
             input_tokens.append(generation_token)
 
-        st.write(input_tokens)
-
-        # TODO This should be a tokenizer method
-        tokens = [_tokenizer.token_to_id[token] for token in input_tokens]
-        input_token_ids = torch.tensor(tokens).unsqueeze(0).to(device)
+        input_token_ids = _tokenizer.encode_tokens(input_tokens)
+        input_token_ids = torch.tensor(input_token_ids).unsqueeze(0).to(device)
 
         generated_token_ids = _model.generate_new_tokens(
             idx=input_token_ids,
